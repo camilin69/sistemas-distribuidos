@@ -1,0 +1,112 @@
+.header {
+  background: linear-gradient(135deg, #87CEEB 0%, #B0E2FF 100%);
+  padding: 2rem 0;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+
+  .title {
+    color: #2C3E50;
+    font-size: 3rem;
+    font-weight: 700;
+    margin: 0;
+    text-shadow: 2px 2px 4px rgba(255, 255, 255, 0.5);
+    position: relative;
+    z-index: 2;
+  }
+
+  .clouds {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+
+  .cloud {
+    position: absolute;
+    background: white;
+    border-radius: 50%;
+    opacity: 0.8;
+
+    &::before, &::after {
+      content: '';
+      position: absolute;
+      background: white;
+      border-radius: 50%;
+    }
+
+    &.cloud-1 {
+      width: 80px;
+      height: 30px;
+      top: 20%;
+      left: 10%;
+      animation: float 20s infinite linear;
+
+      &::before {
+        width: 40px;
+        height: 40px;
+        top: -20px;
+        left: 10px;
+      }
+
+      &::after {
+        width: 30px;
+        height: 30px;
+        top: -15px;
+        right: 10px;
+      }
+    }
+
+    &.cloud-2 {
+      width: 120px;
+      height: 40px;
+      top: 40%;
+      right: 15%;
+      animation: float 25s infinite linear reverse;
+
+      &::before {
+        width: 50px;
+        height: 50px;
+        top: -25px;
+        left: 15px;
+      }
+
+      &::after {
+        width: 40px;
+        height: 40px;
+        top: -20px;
+        right: 20px;
+      }
+    }
+
+    &.cloud-3 {
+      width: 100px;
+      height: 35px;
+      bottom: 20%;
+      left: 20%;
+      animation: float 30s infinite linear;
+
+      &::before {
+        width: 45px;
+        height: 45px;
+        top: -22px;
+        left: 12px;
+      }
+
+      &::after {
+        width: 35px;
+        height: 35px;
+        top: -17px;
+        right: 15px;
+      }
+    }
+  }
+}
+
+@keyframes float {
+  0% { transform: translateX(-100px); }
+  100% { transform: translateX(calc(100vw + 100px)); }
+}

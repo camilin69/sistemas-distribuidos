@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - cansat-network
+
+  mongodb:
+    image: mongo:6.0
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - cansat-network
+
+  api:
+    build: ./backend/api
+    ports:
+      - "5000:5000"
+    environment:
+      - MONGODB_URI=mongodb://mongodb:27017/
+      - MONGODB_DB=cansat_data
+      - MONGODB_COLLECTION=launches
+    depends_on:
+      - mongodb
+    networks:
+      - cansat-network
+
+  publisher:
+    build: ./backend/publisher
+    environment:
+      - SERIAL_PORT=${SERIAL_PORT:-COM3}
+      - BAUDRATE=${BAUDRATE:-9600}
+      - ADMIN_KEY=${ADMIN_KEY:-default_key}
+    depends_on:
+      - redis
+    volumes:
+      - /dev:/dev
+    privileged: true
+    networks:
+      - cansat-network
+
+  subscriber:
+    build: ./backend/subscriber
+    environment:
+      - ADMIN_KEY=${ADMIN_KEY:-default_key}
+    depends_on:
+      - redis
+      - mongodb
+    networks:
+      - cansat-network
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "4200:4200"
+    environment:
+      - API_URL=http://api:5000/launch_cansat
+    depends_on:
+      - api
+    networks:
+      - cansat-network
+
+volumes:
+  redis_data:
+  mongodb_data:
+
+networks:
+  cansat-network:
+    driver: bridge

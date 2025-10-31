@@ -1,0 +1,33 @@
+.chart-container {
+  background: white;
+  border-radius: 10px;
+  padding: 20px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  border: 1px solid #E3F2FD;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 450px;
+  width: 100%;
+
+  // Asegurar que el SVG sea responsive
+  svg {
+    max-width: 100%;
+    height: auto;
+  }
+}
+
+// Hacer el chart responsive
+@media (max-width: 1200px) {
+  .chart-container {
+    padding: 15px;
+    min-height: 400px;
+  }
+}
+
+@media (max-width: 768px) {
+  .chart-container {
+    padding: 10px;
+    min-height: 350px;
+  }
+}

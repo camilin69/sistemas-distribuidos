@@ -1,0 +1,130 @@
+/**
+* NODO CHAT - Sistema de chat seguro con cifrado XOR
+*/
+
+#define HELTEC_POWER_BUTTON
+#include <heltec_unofficial.h>
+
+// ========== CONFIGURACIÓN LORA ==========
+#define FREQUENCY           866.3
+#define BANDWIDTH           250.0
+#define SPREADING_FACTOR    7
+#define TRANSMIT_POWER      14
+
+// ========== VARIABLES GLOBALES ==========
+String mensaje_enviado;
+String mensaje_recibido;
+volatile bool rxFlag = false;
+String llave_proteccion = "7777";
+String id = "";
+int i1, i2, i3, i4;
+
+// ========== CIFRADO XOR MEJORADO ==========
+const uint8_t XOR_KEYS[] = {0x2A, 0x4F, 0x31, 0x5C}; // *, O, 1, \ (clave de 4 bytes)
+
+String cifrar_xor(const String& texto) {
+  String resultado = texto;
+  for (int i = 0; i < resultado.length(); i++) {
+    resultado[i] = resultado[i] ^ XOR_KEYS[i % 4];
+  }
+  return resultado;
+}
+
+String descifrar_xor(const String& texto_cifrado) {
+  return cifrar_xor(texto_cifrado); // XOR es simétrico
+}
+
+// ========== DECLARACIÓN DE FUNCIONES ==========
+String Start_Rx();
+void Start_Tx(String data);
+
+void setup() {
+ heltec_setup();
+ 
+ radio.begin();
+ radio.setDio1Action(rx);
+ radio.setFrequency(FREQUENCY);
+ radio.setBandwidth(BANDWIDTH);
+ radio.setSpreadingFactor(SPREADING_FACTOR);
+ radio.setOutputPower(TRANSMIT_POWER);
+ radio.startReceive(RADIOLIB_SX126X_RX_TIMEOUT_INF);
+ 
+ both.println("Chat Seguro Listo con XOR");
+}
+
+void loop() {
+  heltec_loop();
+  
+  if (id == "") {
+    // ID asignado desde la terminal en python
+    if (Serial.available()) {
+      String id_recibido = Serial.readStringUntil('\n');
+      id_recibido.trim();
+      id = id_recibido;
+      both.printf("ID asignado: %s\n", id.c_str());
+    }
+  } else {
+    if(Serial.available()) {
+      mensaje_enviado = Serial.readStringUntil('\n');
+      mensaje_enviado.trim();
+      
+      if (mensaje_enviado.length() > 0) {
+        String mensaje_descifrado = descifrar_xor(mensaje_enviado);
+        
+        if(mensaje_descifrado.startsWith(llave_proteccion + "-" + id)) {
+          mensaje_enviado = cifrar_xor(mensaje_descifrado);
+          Start_Tx(mensaje_enviado);
+        }
+      }
+    } 
+    
+    if (rxFlag) { 
+      mensaje_recibido = Start_Rx();
+      mensaje_recibido.trim();
+      
+      if (mensaje_recibido.length() > 0) {
+        String mensaje_descifrado = descifrar_xor(mensaje_recibido);
+
+        if(mensaje_descifrado.startsWith(llave_proteccion + "-admin-")) {
+          i1 = mensaje_descifrado.indexOf("-");
+          i2 = mensaje_descifrado.indexOf("-", i1 + 1);
+          i3 = mensaje_descifrado.indexOf("-", i2 + 1);
+          if (i3 != 0) {
+            if(mensaje_descifrado.substring(i2 + 1, i3) == id) {
+              String mensaje = mensaje_descifrado.substring(i3 + 1);
+              both.println("Admin para " + id + ": " + mensaje);
+            }
+          } else {
+            String mensaje = mensaje_descifrado.substring(i2 + 1);
+            both.println("Admin para todos dice: " + mensaje);
+
+          }
+        } 
+      }
+    }
+  }
+}
+
+void rx() {
+  rxFlag = true;
+}
+
+String Start_Rx() {
+  String rxdata;
+  rxFlag = false;
+  
+  int status = radio.readData(rxdata);
+  if (status == RADIOLIB_ERR_NONE) {
+    return rxdata;
+  }
+  
+  radio.startReceive(RADIOLIB_SX126X_RX_TIMEOUT_INF);
+  return ""; // Retornar string vacío si no hay datos
+}
+
+void Start_Tx(String data) {
+  both.println("Transmitiendo mensaje cifrado\n" + data);
+  radio.transmit(data.c_str());
+  radio.startReceive(RADIOLIB_SX126X_RX_TIMEOUT_INF);
+  rxFlag = false;
+}

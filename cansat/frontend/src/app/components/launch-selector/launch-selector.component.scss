@@ -1,0 +1,29 @@
+.selector-container {
+  display: flex;
+  justify-content: center;
+  padding: 2rem 0;
+  background: linear-gradient(135deg, #E3F2FD 0%, #BBDEFB 100%);
+
+  .launch-selector {
+    padding: 12px 24px;
+    font-size: 1.2rem;
+    border: 2px solid #64B5F6;
+    border-radius: 25px;
+    background: white;
+    color: #2C3E50;
+    outline: none;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(100, 181, 246, 0.3);
+    transition: all 0.3s ease;
+
+    &:hover {
+      border-color: #1976D2;
+      box-shadow: 0 6px 20px rgba(25, 118, 210, 0.4);
+    }
+
+    &:focus {
+      border-color: #1565C0;
+      box-shadow: 0 0 0 3px rgba(21, 101, 192, 0.2);
+    }
+  }
+}
