@@ -31,6 +31,40 @@ def get_db_connection():
         print(f"MongoDB connection error: {e}")
         return None
 
+@app.route('/launch_cansat/cansat_req_id', methods=['POST'])
+def assign_launch_id():
+    """Asigna un nuevo ID de lanzamiento para CANSAT"""
+    try:
+        collection = get_db_connection()
+        if collection is None:
+            return jsonify({'error': 'Database connection failed'}), 500
+        
+        # Buscar el máximo ID existente
+        max_launch = collection.find_one(sort=[("launch_id", pymongo.DESCENDING)])
+        next_id = 1
+        
+        if max_launch and 'launch_id' in max_launch:
+            next_id = max_launch['launch_id'] + 1
+        
+        # Crear documento base para el nuevo lanzamiento
+        new_launch = {
+            'launch_id': next_id,
+            'start_date': None,
+            'end_date': None,
+            'variables': []
+        }
+        
+        # Insertar en la base de datos
+        collection.insert_one(new_launch)
+        
+        return jsonify({
+            'assigned_id': next_id,
+            'status': 'success'
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    
 @app.route('/launch_cansat/launches', methods=['GET'])
 def get_all_launches():
     try:

@@ -35,24 +35,8 @@ services:
     networks:
       - cansat-network
 
-  publisher:
-    build: ./backend/publisher
-    environment:
-      - SERIAL_PORT=${SERIAL_PORT:-COM3}
-      - BAUDRATE=${BAUDRATE:-9600}
-      - ADMIN_KEY=${ADMIN_KEY:-default_key}
-    depends_on:
-      - redis
-    volumes:
-      - /dev:/dev
-    privileged: true
-    networks:
-      - cansat-network
-
   subscriber:
     build: ./backend/subscriber
-    environment:
-      - ADMIN_KEY=${ADMIN_KEY:-default_key}
     depends_on:
       - redis
       - mongodb

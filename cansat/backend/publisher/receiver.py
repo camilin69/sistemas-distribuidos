@@ -33,11 +33,8 @@ class Receiver:
             return None
         try:
             raw_data = self.ser.readline().decode('utf-8').strip()
-            if raw_data:
-                data = self.decypher_xor(raw_data)
-                return data
-            else:
-                return None
+            
+            return raw_data
         except Exception as e:
             print(f"Data Reception Error: {e}")
             return None

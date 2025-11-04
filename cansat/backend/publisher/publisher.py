@@ -1,5 +1,6 @@
 import time
 import redis
+import requests
 from receiver import Receiver
 from config import Config
 
@@ -13,6 +14,7 @@ class DataPublisher:
             port=self.config.REDIS_PORT,
             decode_responses=True
         )
+        print(f"port: {self.config.SERIAL_PORT}, baudrate: {self.config.BAUDRATE}, api_url: {self.config.API_BASE_URL}")
         
     def connect(self):
         if not self.receiver.connect():
@@ -27,60 +29,103 @@ class DataPublisher:
             print("Failed to connect to Redis")
             return False
     
+    def request_launch_id(self):
+        """Solicita un nuevo ID de lanzamiento a la API"""
+        try:
+            response = requests.post(f"{self.config.API_BASE_URL}/cansat_req_id")
+            if response.status_code == 200:
+                data = response.json()
+                return data.get('assigned_id')
+            else:
+                print(f"API error: {response.status_code}")
+                return None
+        except Exception as e:
+            print(f"Error requesting launch ID: {e}")
+            return None
+    
+    def assign_id_to_cansat(self, launch_id):
+        """Envía el ID asignado al CANSAT via serial"""
+        try:
+            command = f"{self.config.ADMIN_KEY}-CANSAT_REQ_ID-{launch_id}"
+            self.receiver.ser.write((command + '\n').encode('utf-8'))
+            print(f"ID {launch_id} enviado al CANSAT")
+            return True
+        except Exception as e:
+            print(f"Error assigning ID to CANSAT: {e}")
+            return False
+    
     def parse_data(self, raw_data):
-        """Parse data from format: [HEADER][TIMESTAMP][TEMP][HUM]"""
+        """Parse data from format: admin_key|launch_id|action|timestamp|temp|hum|lat|lon|alt"""
         try:
             if not raw_data or raw_data == "None":
                 return None
                 
-            # Remove brackets and split by commas
-            data_clean = raw_data.strip('[]')
-            parts = data_clean.split('][')
+            parts = raw_data.split('-')
             
             if len(parts) < 4:
                 return None
                 
-            header = parts[0]
-            timestamp = float(parts[1])
-            temperature = float(parts[2])
-            humidity = float(parts[3])
+            admin_key = parts[0]
+            launch_id = int(parts[1])
+            action = parts[2]
+            timestamp = float(parts[3])
             
-            # Parse header: admin_key-launch_id-action
-            header_parts = header.split('-')
-            if len(header_parts) < 3:
-                return None
-                
-            admin_key = header_parts[0]
-            launch_id = int(header_parts[1])
-            action = header_parts[2]
-            
-            return {
+            parsed_data = {
                 'admin_key': admin_key,
                 'launch_id': launch_id,
                 'action': action,
                 'timestamp': timestamp,
-                'temperature': temperature,
-                'humidity': humidity,
                 'received_at': time.time()
             }
+            
+            # Agregar datos de sensores si están disponibles
+            if len(parts) > 4 and action == "launch":
+                parsed_data['temperature'] = float(parts[4])
+                parsed_data['humidity'] = float(parts[5])
+                
+                # Datos GPS opcionales
+                if len(parts) > 7:
+                    parsed_data['latitude'] = float(parts[6])
+                    parsed_data['longitude'] = float(parts[7])
+                    parsed_data['altitude'] = float(parts[8])
+            
+            return parsed_data
+            
         except Exception as e:
             print(f"Error parsing data: {e}")
             return None
     
+    def handle_id_request(self):
+        """Maneja solicitud de ID del CANSAT"""
+        print("Solicitud de ID recibida del CANSAT")
+        launch_id = self.request_launch_id()
+        if launch_id:
+            self.assign_id_to_cansat(launch_id)
+            return launch_id
+        return None
+    
     def publish_data(self):
-        """Main loop to request and publish data every second"""
+        """Main loop to process incoming data"""
+        current_launch_id = None
+        
         while True:
             try:
-                # Request data from LoRa device
-                raw_data = self.receiver.ask_for_data(Config.ADMIN_KEY + '-REQUEST-DATA')
+                # Leer datos del serial
+                raw_data = self.receiver.receive_data()
+                print(f"Received raw data: {raw_data}")
                 
                 if raw_data:
-                    parsed_data = self.parse_data(raw_data)
+                    # Verificar si es solicitud de ID
+                    if raw_data == (self.config.ADMIN_KEY + "-CANSAT_REQ_ID"):
+                        current_launch_id = self.handle_id_request()
+                        continue
                     
+                    # Parsear datos normales
+                    parsed_data = self.parse_data(raw_data)
                     if parsed_data:
-                        # Validate admin key
+                        # Validar admin key
                         if parsed_data['admin_key'] == self.config.ADMIN_KEY:
-                            # Publish to Redis
+                            # Publicar a Redis
                             self.redis_client.publish(
                                 self.config.REDIS_CHANNEL, 
                                 str(parsed_data)
@@ -91,7 +136,10 @@ class DataPublisher:
                     else:
                         print("Failed to parse data")
                 else:
-                    print("No data received")
+                    # Si no hay datos pero tenemos un launch_id activo, solicitar datos
+                    if current_launch_id:
+                        request_command = f"{self.config.ADMIN_KEY}|{current_launch_id}|REQUEST-DATA"
+                        self.receiver.ask_for_data(request_command)
                 
                 time.sleep(self.TIME_INTERVAL)
                 

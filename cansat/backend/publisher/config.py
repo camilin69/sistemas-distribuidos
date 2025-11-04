@@ -10,3 +10,4 @@ class Config:
     REDIS_PORT = int(os.getenv('REDIS_PORT'))
     ADMIN_KEY = os.getenv('ADMIN_KEY')
     REDIS_CHANNEL = os.getenv('REDIS_CHANNEL')
+    API_BASE_URL = os.getenv('API_BASE_URL')
