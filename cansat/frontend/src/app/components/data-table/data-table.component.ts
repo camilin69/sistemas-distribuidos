@@ -1,4 +1,4 @@
-import { Component, Input } from '@angular/core';
+import { Component, Input, OnChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ChartData } from '../../models/launch.model';
 
@@ -11,13 +11,15 @@ import { ChartData } from '../../models/launch.model';
       <table class="data-table">
         <thead>
           <tr>
-            <th>Tiempo (s)</th>
-            <th>{{ type === 'humidity' ? 'Humedad (%)' : 'Temperatura (°C)' }}</th>
+            <th>Tiempo Relativo</th>
+            <th>Timestamp Arduino</th>
+            <th>{{ getColumnHeader() }}</th>
           </tr>
         </thead>
         <tbody>
           <tr *ngFor="let item of data.slice(0, 20)">
-            <td>{{ item.timestamp | number:'1.2-2' }}</td>
+            <td>{{ item.formattedTime || item.localTime || (item.relativeTime | number:'1.0-0') + 'ms' }}</td>
+            <td>{{ item.timestamp | number:'1.0-0' }}ms</td>
             <td>{{ item.value | number:'1.2-2' }}</td>
           </tr>
         </tbody>
@@ -29,7 +31,50 @@ import { ChartData } from '../../models/launch.model';
   `,
   styleUrls: ['./data-table.component.scss']
 })
-export class DataTableComponent {
+export class DataTableComponent implements OnChanges {
   @Input() data: ChartData[] = [];
   @Input() type: string = 'humidity';
+
+  ngOnChanges() {
+    // Asegurarse de que los datos tengan las propiedades necesarias
+    this.data = this.data.map(item => ({
+      ...item,
+      formattedTime: item.formattedTime || this.formatRelativeTime(item.timestamp)
+    }));
+  }
+
+  // Función auxiliar para formatear tiempo relativo si no viene procesado
+  private formatRelativeTime(timestamp: number): string {
+    const seconds = Math.floor(timestamp / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    
+    const remainingSeconds = seconds % 60;
+    const remainingMinutes = minutes % 60;
+    
+    if (hours > 0) {
+      return `${hours}h ${remainingMinutes}m ${remainingSeconds}s`;
+    } else if (minutes > 0) {
+      return `${minutes}m ${remainingSeconds}s`;
+    } else {
+      return `${seconds}s`;
+    }
+  }
+
+  getColumnHeader(): string {
+    switch (this.type) {
+      case 'humidity':
+        return 'Humedad (%)';
+      case 'temperature':
+        return 'Temperatura (°C)';
+      case 'latitude':
+        return 'Latitud (°)';
+      case 'longitude':
+        return 'Longitud (°)';
+      case 'altitude':
+        return 'Altitud (m)';
+      default:
+        return 'Valor';
+    }
+  }
 }

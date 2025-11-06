@@ -64,15 +64,42 @@ String base64Decode(const String& input) {
   return output;
 }
 
-void setup() {
-  Serial.begin(9600);
-  delay(1000);
+void hardResetLoRa() {
+  Serial.println("Reiniciando módulo LoRa...");
+  
+  LoRa.end();
+  delay(100);
+  
+  pinMode(LORA_RST, OUTPUT);
+  digitalWrite(LORA_RST, LOW);
+  delay(10);
+  digitalWrite(LORA_RST, HIGH);
+  delay(50);
+  
+  cansat_req_id = "";
+  decryptedMessage = "";
+  
   LoRa.setPins(LORA_NSS, LORA_RST, LORA_DI00);
-  LoRa.begin(433E6);
+  
+  if (!LoRa.begin(433E6)) {
+    Serial.println("Error iniciando LoRa después del reset!");
+    return;
+  }
+  
   LoRa.setSpreadingFactor(7);
   LoRa.setSignalBandwidth(125E3);
   LoRa.setCodingRate4(5);
   LoRa.setSyncWord(0x12);
+  
+  Serial.println("Módulo LoRa reiniciado exitosamente");
+}
+
+void setup() {
+  Serial.begin(9600);
+  delay(1000);
+
+  hardResetLoRa();
+
   
   Serial.println("RX listo - Esperando datos...");
 }
@@ -87,8 +114,6 @@ void loop() {
     }
 
     decryptedMessage = base64Decode(encryptedMessage);
-    Serial.println(decryptedMessage);
-
 
     if(decryptedMessage == (ADMIN_KEY + "-CANSAT_REQ_ID")) {
       if (cansat_req_id == "") {

@@ -10,6 +10,8 @@ import { CommonModule } from '@angular/common';
 import { LaunchService } from './services/launch.service';
 import { Launch } from './models/launch.model';
 import { ChartData } from './models/launch.model';
+import { GpsMapComponent } from './components/gps/gps-map.component';
+import { TimeService } from './services/time.service';
 
 @Component({
   selector: 'app-root',
@@ -21,7 +23,8 @@ import { ChartData } from './models/launch.model';
     DataNavComponent,
     ChartComponent,
     DataTableComponent,
-    FooterComponent
+    FooterComponent,
+    GpsMapComponent
   ],
   template: `
     <div class="app-container">
@@ -35,60 +38,89 @@ import { ChartData } from './models/launch.model';
         (tabChanged)="onTabChanged($event)"
       ></app-data-nav>
       
-      <!-- Contenido principal que se expande cuando no hay datos -->
       <main class="main-content" [class.has-data]="selectedLaunch">
         <div class="content-wrapper" *ngIf="selectedLaunch; else noData">
           <!-- Panel lateral con información del lanzamiento -->
           <aside class="launch-info-panel">
             <div class="info-card">
               <h3>Información del Lanzamiento</h3>
+              
               <div class="info-item">
                 <span class="label">ID:</span>
                 <span class="value">{{ selectedLaunch.launch_id }}</span>
               </div>
+              
               <div class="info-item">
-                <span class="label">Fecha Inicio:</span>
-                <span class="value">{{ selectedLaunch.start_date }}</span>
+                <span class="label">Estado:</span>
+                <span class="value status" [class.in-progress]="launchDuration.isInProgress" 
+                      [class.completed]="!launchDuration.isInProgress">
+                  {{ launchDuration.status }}
+                </span>
               </div>
+
               <div class="info-item">
-                <span class="label">Fecha Fin:</span>
-                <span class="value">{{ selectedLaunch.end_date }}</span>
+                <span class="label">Duración:</span>
+                <span class="value duration">{{ launchDuration.duration }}</span>
               </div>
+
+              <div class="info-item">
+                <span class="label">Timestamp Inicio:</span>
+                <span class="value">{{ getStartTimestamp() | number:'1.0-0' }}ms</span>
+              </div>
+
+              <div class="info-item">
+                <span class="label">Timestamp Fin:</span>
+                <span class="value">{{ getEndTimestamp() | number:'1.0-0' }}ms</span>
+              </div>
+              
               <div class="info-item">
                 <span class="label">Datos Registrados:</span>
                 <span class="value">{{ selectedLaunch.variables.length }} puntos</span>
               </div>
+              
               <div class="info-item">
-                <span class="label">Variable Activa:</span>
-                <span class="value">{{ activeTab === 'humidity' ? 'Humedad' : 'Temperatura' }}</span>
+                <span class="label">Zona Horaria:</span>
+                <span class="value">{{ getUserTimezone() }}</span>
               </div>
             </div>
           </aside>
 
-          <!-- Contenido principal centrado -->
+          <!-- Resto del template permanece igual -->
           <div class="main-panel">
             <app-chart 
-              *ngIf="chartData.length > 0"
+              *ngIf="chartData.length > 0 && activeTab !== 'gps'"
               [data]="chartData"
               [type]="activeTab"
-              [title]="activeTab === 'humidity' ? 'Humedad vs Tiempo' : 'Temperatura vs Tiempo'"
+              [title]="getChartTitle()"
             ></app-chart>
             
             <app-data-table 
-              *ngIf="chartData.length > 0"
+              *ngIf="chartData.length > 0 && activeTab !== 'gps'"
               [data]="chartData"
               [type]="activeTab"
             ></app-data-table>
+
+            <app-gps-map 
+              *ngIf="activeTab === 'gps' && selectedLaunch"
+              [launch]="selectedLaunch"
+            ></app-gps-map>
+            
+            <div *ngIf="chartData.length === 0 && activeTab !== 'gps'" class="no-chart-data">
+              <div class="no-data-content">
+                <i class="icon">📈</i>
+                <h3>No hay datos disponibles</h3>
+                <p>No se encontraron datos de {{ getActiveTabName().toLowerCase() }} para este lanzamiento.</p>
+              </div>
+            </div>
           </div>
         </div>
 
-        <!-- Mensaje cuando no hay datos seleccionados -->
         <ng-template #noData>
           <div class="no-data-message">
             <div class="no-data-content">
               <i class="icon">📊</i>
               <h3>Selecciona un lanzamiento</h3>
-              <p>Elige un lanzamiento del menú desplegable para visualizar los datos de temperatura y humedad.</p>
+              <p>Elige un lanzamiento del menú desplegable para visualizar los datos de sensores y GPS.</p>
             </div>
           </div>
         </ng-template>
@@ -105,10 +137,13 @@ export class AppComponent implements OnInit {
   selectedLaunchId: number | null = null;
   selectedLaunch: Launch | null = null;
   chartData: ChartData[] = [];
+  launchDuration: any = { duration: 'N/A', status: 'No disponible', isInProgress: false };
+  launchStats: any = null;
 
   constructor(
     private launchService: LaunchService,
-    private router: Router
+    private router: Router,
+    private timeService: TimeService
   ) {}
 
   ngOnInit() {
@@ -137,9 +172,15 @@ export class AppComponent implements OnInit {
       this.showNav = false;
     }
 
-    if (tab && (tab === 'humidity' || tab === 'temperature')) {
+    // Validar que la pestaña sea una de las permitidas
+    if (tab && this.isValidTab(tab)) {
       this.activeTab = tab;
     }
+  }
+
+  isValidTab(tab: string): boolean {
+    const validTabs = ['humidity', 'temperature', 'latitude', 'longitude', 'altitude'];
+    return validTabs.includes(tab);
   }
 
   onLaunchSelected(launchId: number | null) {
@@ -160,9 +201,11 @@ export class AppComponent implements OnInit {
   }
 
   onTabChanged(tab: string) {
-    this.activeTab = tab;
-    this.updateUrl();
-    this.loadChartData();
+    if (this.isValidTab(tab)) {
+      this.activeTab = tab;
+      this.updateUrl();
+      this.loadChartData();
+    }
   }
 
   updateUrl() {
@@ -190,31 +233,110 @@ export class AppComponent implements OnInit {
         .subscribe({
           next: (launch) => {
             this.selectedLaunch = launch;
+            this.updateLaunchInfo();
             this.loadChartData();
           },
           error: (error) => {
             console.error('Error loading launch data:', error);
             this.selectedLaunch = null;
             this.chartData = [];
+            this.launchDuration = { duration: 'N/A', status: 'Error', isInProgress: false };
+            this.launchStats = null;
           }
         });
     }
   }
 
+  updateLaunchInfo() {
+    if (this.selectedLaunch) {
+      // Actualizar información de duración usando timestamps de Arduino
+      this.launchDuration = this.calculateLaunchDuration(this.selectedLaunch);
+      
+      // Actualizar estadísticas
+      this.launchStats = this.launchService.getLaunchStats(this.selectedLaunch);
+    } else {
+      this.launchDuration = { duration: 'N/A', status: 'No disponible', isInProgress: false };
+      this.launchStats = null;
+    }
+  }
+
+  calculateLaunchDuration(launch: any): any {
+    if (!launch.variables || launch.variables.length < 2) {
+      return { duration: 'N/A', status: 'Sin datos', isInProgress: false };
+    }
+
+    const sortedVars = [...launch.variables].sort((a, b) => a.timestamp - b.timestamp);
+    const startTime = sortedVars[0].timestamp;
+    const endTime = sortedVars[sortedVars.length - 1].timestamp;
+    const durationMs = endTime - startTime;
+
+    // Determinar estado basado en end_date
+    const isInProgress = !launch.end_date || 
+                        launch.end_date === 'null' || 
+                        launch.end_date === 'Invalid Date';
+
+    return {
+      duration: this.timeService.formatRelativeTime(durationMs),
+      status: isInProgress ? 'En progreso' : 'Completado',
+      isInProgress: isInProgress
+    };
+  }
+  getStartTimestamp(): number {
+    if (!this.selectedLaunch?.variables?.length) return 0;
+    return Math.min(...this.selectedLaunch.variables.map(v => v.timestamp));
+  }
+
+  getEndTimestamp(): number {
+    if (!this.selectedLaunch?.variables?.length) return 0;
+    return Math.max(...this.selectedLaunch.variables.map(v => v.timestamp));
+  }
+
+  
+
   loadChartData() {
-    if (this.selectedLaunchId && this.activeTab) {
-      this.launchService.getLaunchVariables(this.selectedLaunchId, this.activeTab)
-        .subscribe({
-          next: (data) => {
-            this.chartData = data;
-          },
-          error: (error) => {
-            console.error('Error loading chart data:', error);
-            this.chartData = [];
-          }
-        });
+    if (this.selectedLaunch && this.activeTab) {
+      this.chartData = this.launchService.getChartData(this.selectedLaunch, this.activeTab);
     } else {
       this.chartData = [];
     }
+  }
+
+  formatLaunchDate(dateString: string | null): string {
+    return this.timeService.formatLaunchDate(dateString);
+  }
+
+  getUserTimezone(): string {
+    return this.timeService.getUserTimezone();
+  }
+
+  getActiveTabName(): string {
+    switch (this.activeTab) {
+      case 'humidity':
+        return 'Humedad';
+      case 'temperature':
+        return 'Temperatura';
+      case 'latitude':
+        return 'Latitud';
+      case 'longitude':
+        return 'Longitud';
+      case 'altitude':
+        return 'Altitud';
+      default:
+        return 'Datos';
+    }
+  }
+
+  getChartTitle(): string {
+    return `${this.getActiveTabName()} vs Tiempo`;
+  }
+
+  hasGPSData(): boolean {
+    if (!this.selectedLaunch || !this.selectedLaunch.variables) {
+      return false;
+    }
+    
+    return this.selectedLaunch.variables.some(variable => 
+      variable.latitude != null && variable.longitude != null
+    );
   }
 }

@@ -99,6 +99,33 @@ String base64Decode(const String& input) {
   return output;
 }
 
+void hardResetLoRa() {
+  Serial.println("Reiniciando módulo LoRa...");
+  
+  LoRa.end();
+  delay(100);
+  
+  pinMode(LORA_RST, OUTPUT);
+  digitalWrite(LORA_RST, LOW);
+  delay(10);
+  digitalWrite(LORA_RST, HIGH);
+  delay(50);
+
+  
+  LoRa.setPins(LORA_NSS, LORA_RST, LORA_DI00);
+  
+  if (!LoRa.begin(433E6)) {
+    Serial.println("Error iniciando LoRa después del reset!");
+    return;
+  }
+  
+  LoRa.setSpreadingFactor(7);
+  LoRa.setSignalBandwidth(125E3);
+  LoRa.setCodingRate4(5);
+  LoRa.setSyncWord(0x12);
+  
+  Serial.println("Módulo LoRa reiniciado exitosamente");
+}
 
 void setup() {
   Serial.begin(9600);
@@ -113,10 +140,7 @@ void setup() {
   servo.write(0);
   dht.begin();
   
-  LoRa.setPins(LORA_NSS, LORA_RST, LORA_DI00);
-  // Inicializar LoRa
-  LoRa.begin(433E6);
-  LoRa.setSyncWord(0x12);
+  hardResetLoRa();
 
   Serial.println("Sistema listo - START para comenzar");
 }
@@ -131,43 +155,63 @@ void loop() {
   unsigned long currentTime = millis();
   
   if (transmitting) {
+    // Lógica para solicitar un ID de lanzamiento 
     if (requesting_id) {
-      // Solicitar ID cada 2 segundos
-      if (currentTime - lastSendTime >= 1000) {
+      if (currentTime - lastSendTime >= 3000) {
         cansatReqId();
         Serial.println("TX...REQUESTING_ID");
         lastSendTime = currentTime;
-        delay(300);
-        receive();
-
       }
-    } else if (launch_id != "") {
-      if (currentTime - lastSendTime >= 500 && startTransmittingCount > 0) {
-        startTransmittingCount--;
-      }else if(currentTime - lastSendTime >= 500 && startTransmittingCount == 0) {
-        stateCurrent = STATE_LAUNCH;
-        startTransmittingCount = -1;
+    } 
+    // Lógica para enviar un paquete con información de los sensores dependiendo del estado
+    else if (launch_id != "") {
+      if (currentTime - lastSendTime >= 1000) {
+        
+        // Lógica de estados
+        if (stopping) {
+          // Modo STOP - enviar 5 paquetes finales en estado END
+          stateCurrent = STATE_END;
+          stopTransmittingCount--;
+          Serial.print("STOP Transmitting Count: ");
+          Serial.println(stopTransmittingCount);
+          
+          if (stopTransmittingCount <= 0) {
+            // Finalizar transmisión después de 5 paquetes END
+            transmitting = false;
+            stopTransmittingCount = 5;
+            startTransmittingCount = 5;
+            stopping = false;
+            stateCurrent = STATE_START; // Resetear estado
+            Serial.println("STOP - Transmisión finalizada");
+          }
+          
+        } else if (startTransmittingCount > 0) {
+          // Modo START - enviar 5 paquetes en estado START
+          stateCurrent = STATE_START;
+          startTransmittingCount--;
+          Serial.print("START Transmitting Count: ");
+          Serial.println(startTransmittingCount);
+          
+        } else {
+          // Modo LAUNCH - transmisión continua
+          stateCurrent = STATE_LAUNCH;
+        }
+        
+        // Enviar datos
+        sendLaunchData();
+        lastSendTime = currentTime;
+        
+        // Debug del estado actual
+        Serial.print("Estado actual: ");
+        Serial.println(STATES[stateCurrent]);
       }
-
-      if(currentTime - lastSendTime >= 500 && stopTransmittingCount > 0 && stopping) {
-        stateCurrent = STATE_END;
-        stopTransmittingCount--;
-      } else if(currentTime - lastSendTime >= 500 && stopTransmittingCount == 0 && stopping) {
-        transmitting = false;
-        stopTransmittingCount = 5;
-        startTransmittingCount = 5;
-        stopping = false;
-        Serial.println("STOP - Detenido");
-      }
-
-      sendLaunchData();
-      lastSendTime = currentTime;
     } else {
       // Si no tenemos ID pero no estamos solicitando, comenzar a solicitar
       requesting_id = true;
       lastSendTime = currentTime;
     }
   }
+  receive();
   
   delay(50);
 }
@@ -189,12 +233,18 @@ void stop() {
   if (digitalRead(BTN_STOP) == LOW) {
     delay(50); // Debounce
     if (digitalRead(BTN_STOP) == LOW) {
-      if(launch_id == "") transmitting = false;
-      requesting_id = false;
-      moveServo(0);
-      launch_id = "";
-      Serial.println("STOP - Deteniendo");
-      stopping = true;
+      if (launch_id == "") {
+        // Si no hay ID, detener inmediatamente
+        transmitting = false;
+        requesting_id = false;
+        moveServo(0);
+        Serial.println("STOP - Transmisión cancelada (sin ID)");
+      } else {
+        // Si hay ID, iniciar secuencia de stop con 5 paquetes finales
+        stopping = true;
+        stopTransmittingCount = 5; // Asegurar que tenga 5 paquetes para enviar
+        Serial.println("STOP - Iniciando secuencia de parada...");
+      }
     }
   }
 }
@@ -216,7 +266,7 @@ void sendLaunchData() {
   
   LoRa.beginPacket();
   LoRa.print(encryptedMessage);
-  LoRa.endPacket(true);
+  LoRa.endPacket();
 }
 
 void cansatReqId() {
@@ -225,7 +275,7 @@ void cansatReqId() {
   Serial.print(encryptedMessage);
   LoRa.beginPacket();
   LoRa.print(encryptedMessage);
-  LoRa.endPacket(true);
+  LoRa.endPacket();
 }
 
 void receive () {

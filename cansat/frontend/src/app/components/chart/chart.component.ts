@@ -20,6 +20,7 @@ export class ChartComponent implements OnInit, OnChanges, OnDestroy {
   private width = 800;
   private height = 400;
   private resizeObserver: ResizeObserver | null = null;
+
   ngOnInit() {
     this.createSvg();
     if (this.data.length > 0) {
@@ -52,8 +53,6 @@ export class ChartComponent implements OnInit, OnChanges, OnDestroy {
     }
   }
 
-
-
   private createSvg() {
     d3.select('#chart').selectAll('*').remove();
     
@@ -69,6 +68,23 @@ export class ChartComponent implements OnInit, OnChanges, OnDestroy {
       .attr('transform', `translate(${this.margin.left},${this.margin.top})`);
   }
 
+  private getYAxisLabel(): string {
+    switch (this.type) {
+      case 'humidity':
+        return 'Humedad (%)';
+      case 'temperature':
+        return 'Temperatura (°C)';
+      case 'latitude':
+        return 'Latitud (°)';
+      case 'longitude':
+        return 'Longitud (°)';
+      case 'altitude':
+        return 'Altitud (m)';
+      default:
+        return 'Valor';
+    }
+  }
+
   private drawChart() {
     this.svg.selectAll('*').remove();
 
@@ -76,11 +92,13 @@ export class ChartComponent implements OnInit, OnChanges, OnDestroy {
     const container = document.getElementById('chart');
     if (container) {
       this.width = container.clientWidth - this.margin.left - this.margin.right - 40;
-      this.height = 400; // Altura fija pero el ancho es responsive
+      this.height = 400;
     }
 
+    // Usar tiempo relativo en segundos
+    const startTime = this.data[0].timestamp;
     const x = d3.scaleLinear()
-      .domain(d3.extent(this.data, (d: ChartData) => d.timestamp) as [number, number])
+      .domain([0, d3.max(this.data, (d: ChartData) => (d.timestamp - startTime) / 1000) as number])
       .range([0, this.width]);
 
     const y = d3.scaleLinear()
@@ -97,7 +115,7 @@ export class ChartComponent implements OnInit, OnChanges, OnDestroy {
       .attr('y', 35)
       .attr('fill', '#2C3E50')
       .attr('font-size', '12px')
-      .text('Tiempo (s)');
+      .text('Tiempo desde inicio (s)');
 
     // Add Y axis
     this.svg.append('g')
@@ -108,11 +126,11 @@ export class ChartComponent implements OnInit, OnChanges, OnDestroy {
       .attr('x', -this.height / 2)
       .attr('fill', '#2C3E50')
       .attr('font-size', '12px')
-      .text(this.type === 'humidity' ? 'Humedad (%)' : 'Temperatura (°C)');
+      .text(this.getYAxisLabel());
 
     // Add line
     const line = d3.line<ChartData>()
-      .x((d: ChartData) => x(d.timestamp))
+      .x((d: ChartData) => x((d.timestamp - startTime) / 1000))
       .y((d: ChartData) => y(d.value))
       .curve(d3.curveMonotoneX);
 
@@ -128,7 +146,7 @@ export class ChartComponent implements OnInit, OnChanges, OnDestroy {
       .data(this.data)
       .enter()
       .append('circle')
-      .attr('cx', (d: ChartData) => x(d.timestamp))
+      .attr('cx', (d: ChartData) => x((d.timestamp - startTime) / 1000))
       .attr('cy', (d: ChartData) => y(d.value))
       .attr('r', 3)
       .attr('fill', '#1976D2')

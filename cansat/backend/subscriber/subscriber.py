@@ -65,7 +65,7 @@ class DataSubscriber:
             return None
     
     def parse_raw_data(self, raw_data):
-        """Parse raw data from format: admin_key-launch_id-action-timestamp-temp-humidity"""
+        """Parse raw data from format: admin_key-launch_id-action-timestamp-temp-humidity-lat-lon-alt"""
         try:
             print(f"🔄 Parsing raw data: {raw_data}")
             
@@ -110,6 +110,17 @@ class DataSubscriber:
                     parsed_data['humidity'] = float(parts[5])
                 except (ValueError, IndexError):
                     parsed_data['humidity'] = None
+            
+            # Extraer datos GPS si están disponibles
+            if len(parts) > 8:  # lat, lon, alt
+                try:
+                    parsed_data['latitude'] = float(parts[6])
+                    parsed_data['longitude'] = float(parts[7])
+                    parsed_data['altitude'] = float(parts[8])
+                except (ValueError, IndexError):
+                    parsed_data['latitude'] = None
+                    parsed_data['longitude'] = None
+                    parsed_data['altitude'] = None
             
             print(f"✅ Parsed data: {parsed_data}")
             return parsed_data
@@ -219,6 +230,12 @@ class DataSubscriber:
             
             if 'humidity' in data and data['humidity'] is not None:
                 variable_data['humidity'] = data['humidity']
+            
+            # Agregar datos GPS si existen
+            if 'latitude' in data and data['latitude'] is not None:
+                variable_data['latitude'] = data['latitude']
+                variable_data['longitude'] = data['longitude']
+                variable_data['altitude'] = data['altitude']
             
             # Agregar a variables
             self.active_launches[launch_id]['variables'].append(variable_data)

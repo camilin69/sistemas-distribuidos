@@ -11,7 +11,7 @@ class Receiver:
 
     def connect(self):
         try:
-            self.ser = serial.Serial(port=self.port, baudrate=self.baudrate, timeout=2)
+            self.ser = serial.Serial(port=self.port, baudrate=self.baudrate, timeout=1)
             time.sleep(2)
             return True
         except Exception as e:

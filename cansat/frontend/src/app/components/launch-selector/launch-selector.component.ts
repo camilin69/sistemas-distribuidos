@@ -1,74 +1,62 @@
 import { Component, Output, EventEmitter, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router'; // Importar Router
-import { Launch } from '../../models/launch.model';
 import { LaunchService } from '../../services/launch.service';
+import { Launch } from '../../models/launch.model';
 
 @Component({
   selector: 'app-launch-selector',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule],
   template: `
     <div class="selector-container">
-      <select 
-        [(ngModel)]="selectedLaunchId" 
-        (ngModelChange)="onLaunchChange()"
-        class="launch-selector"
-      >
-        <option value="">Seleccione un lanzamiento</option>
-        <option *ngFor="let launch of launches" [value]="launch.launch_id">
-          Lanzamiento {{ launch.launch_id }}
-        </option>
-      </select>
+      <div class="launch-selector-wrapper">
+        <label for="launch-select" class="selector-label">Seleccionar Lanzamiento:</label>
+        <select 
+          id="launch-select"
+          class="launch-selector"
+          (change)="onLaunchChange($event)"
+          [value]="selectedLaunchId"
+        >
+          <option value="">Seleccione un lanzamiento</option>
+          <option 
+            *ngFor="let launch of launches" 
+            [value]="launch.launch_id"
+          >
+            Lanzamiento {{ launch.launch_id }} - {{ launch.start_date }}
+          </option>
+        </select>
+      </div>
     </div>
   `,
   styleUrls: ['./launch-selector.component.scss']
 })
 export class LaunchSelectorComponent implements OnInit {
-  @Output() launchSelected = new EventEmitter<number | null>(); // Cambiar para aceptar null
-  
+  @Output() launchSelected = new EventEmitter<number | null>();
   launches: Launch[] = [];
-  selectedLaunchId: string = "";
+  selectedLaunchId: number | null = null;
 
-  constructor(
-    private launchService: LaunchService,
-    private router: Router // Inyectar Router
-  ) { }
+  constructor(private launchService: LaunchService) {}
 
   ngOnInit() {
     this.loadLaunches();
-    this.parseCurrentUrl(); // Para sincronizar con la URL actual
-  }
-
-  parseCurrentUrl() {
-    const url = new URL(window.location.href);
-    const launchId = url.searchParams.get('id_launch');
-    
-    if (launchId) {
-      this.selectedLaunchId = launchId;
-    }
   }
 
   loadLaunches() {
-    this.launchService.getAllLaunches().subscribe({
-      next: (launches) => {
+    this.launchService.getLaunches().subscribe({
+      next: (launches: Launch[]) => {
         this.launches = launches;
       },
-      error: (error) => {
+      error: (error: any) => {
         console.error('Error loading launches:', error);
+        this.launches = [];
       }
     });
   }
 
-  onLaunchChange() {
-    if (this.selectedLaunchId) {
-      // Si selecciona un lanzamiento, emitir el ID
-      this.launchSelected.emit(parseInt(this.selectedLaunchId));
-    } else {
-      // Si selecciona la opción vacía, navegar a la ruta principal
-      this.launchSelected.emit(null);
-      this.router.navigate(['/']);
-    }
+  onLaunchChange(event: Event) {
+    const selectElement = event.target as HTMLSelectElement;
+    const launchId = selectElement.value ? parseInt(selectElement.value, 10) : null;
+    this.selectedLaunchId = launchId;
+    this.launchSelected.emit(launchId);
   }
 }

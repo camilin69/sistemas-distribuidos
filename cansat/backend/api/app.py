@@ -4,6 +4,7 @@ import pymongo
 from config import Config
 import json
 from bson import ObjectId
+from datetime import datetime
 
 class JSONEncoder(json.JSONEncoder):
     def default(self, o):
@@ -69,7 +70,7 @@ def assign_launch_id():
 def get_all_launches():
     try:
         collection = get_db_connection()
-        launches = list(collection.find({}, {'_id': 0, 'launch_id': 1, 'start_date': 1, 'end_date': 1}))
+        launches = list(collection.find({}, {'_id': 0}).sort('launch_id', pymongo.DESCENDING))
         return jsonify(launches)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -92,23 +93,39 @@ def get_launch_variables(launch_id):
     try:
         variable_type = request.args.get('type', 'all')
         collection = get_db_connection()
-        launch = collection.find_one({'launch_id': launch_id}, {'_id': 0, 'variables': 1})
+        launch = collection.find_one({'launch_id': launch_id}, {'_id': 0})
         
         if not launch or 'variables' not in launch:
             return jsonify({'error': 'Launch not found or no variables'}), 404
         
         variables = launch['variables']
         
+        # Filtrar por tipo de variable
         if variable_type == 'temperature':
-            data = [{'timestamp': v['timestamp'], 'value': v['temperature']} for v in variables]
+            data = [{'timestamp': v['timestamp'], 'value': v.get('temperature', 0)} 
+                   for v in variables if v.get('temperature') is not None]
         elif variable_type == 'humidity':
-            data = [{'timestamp': v['timestamp'], 'value': v['humidity']} for v in variables]
+            data = [{'timestamp': v['timestamp'], 'value': v.get('humidity', 0)} 
+                   for v in variables if v.get('humidity') is not None]
+        elif variable_type == 'latitude':
+            data = [{'timestamp': v['timestamp'], 'value': v.get('latitude', 0)} 
+                   for v in variables if v.get('latitude') is not None]
+        elif variable_type == 'longitude':
+            data = [{'timestamp': v['timestamp'], 'value': v.get('longitude', 0)} 
+                   for v in variables if v.get('longitude') is not None]
+        elif variable_type == 'altitude':
+            data = [{'timestamp': v['timestamp'], 'value': v.get('altitude', 0)} 
+                   for v in variables if v.get('altitude') is not None]
         else:
             data = variables
             
         return jsonify(data)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@app.route('/launch_cansat/health', methods=['GET'])
+def health_check():
+    return jsonify({'status': 'healthy', 'service': 'CANSAT API'})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=config.FLASK_PORT, debug=True)

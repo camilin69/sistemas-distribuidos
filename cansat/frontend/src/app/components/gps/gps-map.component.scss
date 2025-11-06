@@ -1,0 +1,128 @@
+.gps-container {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  padding: 1rem;
+}
+
+.map-section, .chart-section, .coordinates-section {
+  background: white;
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.map-section h3, .chart-section h3, .coordinates-section h3 {
+  margin-bottom: 1rem;
+  color: #2C3E50;
+  font-size: 1.2rem;
+}
+
+.map-container {
+  height: 400px;
+  width: 100%;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.chart-3d-container {
+  height: 500px;
+  width: 100%;
+  border-radius: 4px;
+  background: #f8f9fa;
+}
+
+.coordinates-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1rem;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.coordinate-item {
+  background: #f8f9fa;
+  padding: 1rem;
+  border-radius: 6px;
+  border-left: 4px solid #2196F3;
+}
+
+.coordinate-time {
+  font-weight: bold;
+  color: #2C3E50;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.coordinate-data {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  color: #666;
+}
+
+.coordinate-data span {
+  font-family: monospace;
+}
+
+.more-points {
+  text-align: center;
+  padding: 1rem;
+  color: #666;
+  font-style: italic;
+}
+
+.no-data {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 400px;
+  text-align: center;
+  color: #666;
+
+  .no-data-content {
+    i.icon {
+      font-size: 4rem;
+      margin-bottom: 1rem;
+      opacity: 0.5;
+    }
+
+    h3 {
+      margin-bottom: 0.5rem;
+      color: #333;
+    }
+
+    p {
+      color: #666;
+    }
+  }
+}
+
+// Estilos para el tooltip
+:host ::ng-deep .tooltip {
+  position: absolute;
+  text-align: center;
+  padding: 8px;
+  font-size: 12px;
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: 1000;
+}
+
+// Estilos para los puntos del chart
+:host ::ng-deep .trajectory-point {
+  cursor: pointer;
+  transition: r 0.2s ease;
+}
+
+// Asegurar que Leaflet cargue los iconos correctamente
+:host ::ng-deep .leaflet-container {
+  font-family: inherit;
+}
+
+:host ::ng-deep .leaflet-popup-content {
+  font-size: 14px;
+}

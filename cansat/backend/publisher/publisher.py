@@ -46,8 +46,14 @@ class DataPublisher:
     def assign_id_to_cansat(self, launch_id):
         """Envía el ID asignado al CANSAT via serial"""
         try:
-            command = f"{self.config.ADMIN_KEY}-CANSAT_REQ_ID-{launch_id}"
-            self.receiver.ser.write((command + '\n').encode('utf-8'))
+            self.receiver.ser.reset_input_buffer()
+            
+            time.sleep(0.1)
+            
+            command = f"{self.config.ADMIN_KEY}-CANSAT_REQ_ID-{launch_id}\n"
+            self.receiver.ser.write(command.encode('utf-8'))
+            self.receiver.ser.flush()
+            
             print(f"ID {launch_id} enviado al CANSAT")
             return True
         except Exception as e:
@@ -55,7 +61,7 @@ class DataPublisher:
             return False
     
     def parse_data(self, raw_data):
-        """Parse data from format: admin_key|launch_id|action|timestamp|temp|hum|lat|lon|alt"""
+        """Parse data from format: admin_key-launch_id-action-timestamp-temp-hum-lat-lon-alt"""
         try:
             if not raw_data or raw_data == "None":
                 return None
@@ -79,15 +85,28 @@ class DataPublisher:
             }
             
             # Agregar datos de sensores si están disponibles
-            if len(parts) > 4 and action == "launch":
-                parsed_data['temperature'] = float(parts[4])
-                parsed_data['humidity'] = float(parts[5])
+            if len(parts) > 4:
+                try:
+                    parsed_data['temperature'] = float(parts[4])
+                except (ValueError, IndexError):
+                    parsed_data['temperature'] = None
                 
-                # Datos GPS opcionales
-                if len(parts) > 7:
+                try:
+                    parsed_data['humidity'] = float(parts[5])
+                except (ValueError, IndexError):
+                    parsed_data['humidity'] = None
+            
+            # Agregar datos GPS si están disponibles (partes 6, 7, 8)
+            if len(parts) > 8:
+                try:
                     parsed_data['latitude'] = float(parts[6])
                     parsed_data['longitude'] = float(parts[7])
                     parsed_data['altitude'] = float(parts[8])
+                except (ValueError, IndexError):
+                    # Si hay error en GPS, establecer como None
+                    parsed_data['latitude'] = None
+                    parsed_data['longitude'] = None
+                    parsed_data['altitude'] = None
             
             return parsed_data
             

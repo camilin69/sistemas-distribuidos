@@ -24,6 +24,38 @@ import { CommonModule } from '@angular/common';
             Temperatura
           </button>
         </li>
+        <li>
+          <button 
+            [class.active]="activeTab === 'latitude'"
+            (click)="onTabChange('latitude')"
+          >
+            Latitud
+          </button>
+        </li>
+        <li>
+          <button 
+            [class.active]="activeTab === 'longitude'"
+            (click)="onTabChange('longitude')"
+          >
+            Longitud
+          </button>
+        </li>
+        <li>
+          <button 
+            [class.active]="activeTab === 'altitude'"
+            (click)="onTabChange('altitude')"
+          >
+            Altitud
+          </button>
+        </li>
+        <li>
+          <button 
+            [class.active]="activeTab === 'gps'"
+            (click)="onTabChange('gps')"
+          >
+            Mapa GPS
+          </button>
+        </li>
       </ul>
     </nav>
   `,
