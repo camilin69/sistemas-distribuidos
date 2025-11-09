@@ -11,7 +11,7 @@ unsigned long packetsFailed = 0;
 unsigned long lastDiagnostic = 0;
 
 void setup() {
-  Serial.begin(115200);
+  Serial.begin(9600);
   delay(3000); // Espera para inicializar serial
   
   Serial.println();
@@ -27,14 +27,10 @@ void setup() {
   
   if (!LoRa.begin(433E6)) {
     Serial.println("❌ FALLO CRITICO: LoRa no responde");
-    diagnosticFailure();
     return;
   }
   
   Serial.println("✅ LoRa iniciado en 433MHz");
-  
-  // Mostrar configuración actual
-  showLoRaConfig();
   
   Serial.println();
   Serial.println("📡 INICIANDO TRANSMISION DE PRUEBA...");
@@ -49,19 +45,6 @@ void loop() {
   if (millis() - lastSend >= 2000) {
     sendTestPacket();
     lastSend = millis();
-  }
-  
-  // Mostrar diagnóstico cada 10 segundos
-  if (millis() - lastDiagnostic >= 10000) {
-    showDiagnostic();
-    lastDiagnostic = millis();
-  }
-  
-  // Verificar si hay entrada serial para detener
-  if (Serial.available()) {
-    Serial.read();
-    showFinalDiagnostic();
-    while(1) { delay(1000); } // Detener ejecución
   }
   
   delay(100);
@@ -131,61 +114,3 @@ void testPins() {
   Serial.println();
 }
 
-void showLoRaConfig() {
-  Serial.println("⚙️ CONFIGURACION LoRa:");
-  Serial.println("   Frecuencia: 433 MHz");
-  Serial.println("   Potencia TX: 17 dBm");
-  Serial.println("   Ancho Banda: 125 kHz");
-  Serial.println("   Spreading Factor: 7");
-  Serial.println("   Coding Rate: 4/5");
-}
-
-void showDiagnostic() {
-  Serial.println();
-  Serial.println("📊 DIAGNOSTICO:");
-  Serial.print("   Paquetes enviados: ");
-  Serial.println(packetsSent);
-  Serial.print("   Paquetes fallidos: ");
-  Serial.println(packetsFailed);
-  Serial.print("   Tasa de exito: ");
-  if (packetsSent + packetsFailed > 0) {
-    float successRate = (float)packetsSent / (packetsSent + packetsFailed) * 100;
-    Serial.print(successRate, 1);
-    Serial.println("%");
-  } else {
-    Serial.println("0%");
-  }
-  Serial.print("   Tiempo ejecucion: ");
-  Serial.print(millis() / 1000);
-  Serial.println(" segundos");
-  Serial.println();
-}
-
-void showFinalDiagnostic() {
-  Serial.println();
-  Serial.println("======================================");
-  Serial.println("🎯 DIAGNOSTICO FINAL");
-  Serial.println("======================================");
-  Serial.print("Total paquetes enviados: ");
-  Serial.println(packetsSent);
-  Serial.print("Total fallos: ");
-  Serial.println(packetsFailed);
-  
-  if (packetsSent > 0) {
-    Serial.println("✅ TX parece funcionar correctamente");
-    Serial.println("📡 Problema probable: RECEPTOR o CONFIGURACION");
-  } else {
-    Serial.println("❌ TX NO está funcionando");
-    Serial.println("🔧 Verificar hardware y conexiones");
-  }
-}
-
-void diagnosticFailure() {
-  Serial.println();
-  Serial.println("🔧 PROCEDIMIENTO DE DIAGNOSTICO:");
-  Serial.println("1. Verificar alimentación 3.3V en módulo LoRa");
-  Serial.println("2. Verificar conexiones de pines SPI");
-  Serial.println("3. Verificar que la antena esté conectada");
-  Serial.println("4. Probar con otro módulo LoRa");
-  Serial.println("5. Verificar que no haya cortocircuitos");
-}

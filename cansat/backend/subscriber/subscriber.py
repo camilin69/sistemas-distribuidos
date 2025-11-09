@@ -217,9 +217,15 @@ class DataSubscriber:
     def save_data_point(self, launch_id, data):
         """Guardar punto de datos en variables"""
         try:
+            # FILTRAR TIMESTAMPS: Ignorar timestamps Unix enormes
+            timestamp = data.get('timestamp')
+            if timestamp and timestamp > 1000000000000:  # Si es mayor a ~año 2001
+                print(f"⚠️  Ignoring invalid timestamp: {timestamp}")
+                return
+            
             # Crear variable data
             variable_data = {
-                'timestamp': data.get('timestamp'),
+                'timestamp': timestamp,
                 'received_at': data.get('received_at', time.time()),
                 'action': data.get('action', '').lower()
             }
@@ -243,8 +249,7 @@ class DataSubscriber:
             # Guardar en MongoDB inmediatamente
             self.save_launch_to_db(self.active_launches[launch_id])
             
-            print(f"📊 Data point saved for launch {launch_id}")
-            print(f"📈 Variables count: {len(self.active_launches[launch_id]['variables'])}")
+            print(f"📊 Data point saved for launch {launch_id}, timestamp: {timestamp}")
             
         except Exception as e:
             print(f"❌ Error saving data point: {e}")

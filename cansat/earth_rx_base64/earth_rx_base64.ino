@@ -4,16 +4,12 @@
 #define LORA_RST 9
 #define LORA_NSS 10
 
-const byte XOR_KEYS[] = {0x2A, 0x4F, 0x31, 0x5C};
-const int KEY_LENGTH = 4;
 String ADMIN_KEY = "playboi";
 String cansat_req_id = "";
-String decryptedMessage = "";
-
 
 const char BASE64_CHARS[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
-// Base64 robusto y probado
+// Base64
 String base64Encode(const String& input) {
   String output = "";
   int i = 0;
@@ -32,7 +28,6 @@ String base64Encode(const String& input) {
     output += BASE64_CHARS[(triple >> 0 * 6) & 0x3F];
   }
   
-  // Padding
   if (len % 3 == 1) {
     output[output.length()-1] = '=';
     output[output.length()-2] = '=';
@@ -64,6 +59,12 @@ String base64Decode(const String& input) {
   return output;
 }
 
+void dumpLoRaRegisters() {
+  Serial.println("=== REGISTROS LoRa (POST-RECEPCIÓN) ===");
+  LoRa.dumpRegisters(Serial);
+  Serial.println("========================================");
+}
+
 void hardResetLoRa() {
   Serial.println("Reiniciando módulo LoRa...");
   
@@ -77,7 +78,6 @@ void hardResetLoRa() {
   delay(50);
   
   cansat_req_id = "";
-  decryptedMessage = "";
   
   LoRa.setPins(LORA_NSS, LORA_RST, LORA_DI00);
   
@@ -86,9 +86,9 @@ void hardResetLoRa() {
     return;
   }
   
-  LoRa.setSpreadingFactor(7);
-  LoRa.setSignalBandwidth(125E3);
-  LoRa.setCodingRate4(5);
+  LoRa.setSpreadingFactor(12);
+  LoRa.setSignalBandwidth(62.5E3);
+  LoRa.setCodingRate4(8);
   LoRa.setSyncWord(0x12);
   
   Serial.println("Módulo LoRa reiniciado exitosamente");
@@ -97,45 +97,62 @@ void hardResetLoRa() {
 void setup() {
   Serial.begin(9600);
   delay(1000);
-
   hardResetLoRa();
-
-  
   Serial.println("RX listo - Esperando datos...");
 }
 
 void loop() {
   if (LoRa.parsePacket() > 0) {
-    Serial.println("Packet received");
     String encryptedMessage = "";
     
+    // ✅ FILTRO CRÍTICO: Solo aceptar caracteres Base64 válidos
     while (LoRa.available()) {
-      encryptedMessage += (char)LoRa.read();
+      char c = (char)LoRa.read();
+      // Solo aceptar caracteres Base64 válidos
+      if (isalnum(c) || c == '+' || c == '/' || c == '=') {
+        encryptedMessage += c;
+      }
     }
 
-    decryptedMessage = base64Decode(encryptedMessage);
+    // DEBUG: Mostrar registros inmediatamente después de recibir paquete
+    dumpLoRaRegisters();
 
-    if(decryptedMessage == (ADMIN_KEY + "-CANSAT_REQ_ID")) {
-      if (cansat_req_id == "") {
-        Serial.println(decryptedMessage);
-        delay(2000);
-      }
-      if(Serial.available() && cansat_req_id == "") {
-        cansat_req_id = Serial.readStringUntil('\n');
-        cansat_req_id.trim();
-        Serial.println("LORA GOT: " + cansat_req_id);
-      }
-      if(cansat_req_id.startsWith(ADMIN_KEY + "-CANSAT_REQ_ID-")) {
-        Serial.println("LORA SEND: " + cansat_req_id);
-        encryptedMessage = base64Encode(cansat_req_id);
-        LoRa.beginPacket();
-        LoRa.print(encryptedMessage);
-        LoRa.endPacket();
-      }
-
-    } else if (decryptedMessage.startsWith(ADMIN_KEY)){
+    // Solo procesar si el mensaje tiene longitud razonable
+    if (encryptedMessage.length() >= 20 && encryptedMessage.length() <= 100) {
+      Serial.print("Packet received: ");
+      Serial.println(encryptedMessage);
+      
+      String decryptedMessage = base64Decode(encryptedMessage);
+      Serial.print("Decoded: ");
       Serial.println(decryptedMessage);
-      decryptedMessage = "";
+
+      // LÓGICA ESPECÍFICA PARA TRABAJAR CON EL PUBLISHER
+      if(decryptedMessage == (ADMIN_KEY + "-CANSAT_REQ_ID")) {
+        if (cansat_req_id == "") {
+          Serial.println(decryptedMessage);
+          delay(2000);
+        }
+        if(Serial.available() && cansat_req_id == "") {
+          cansat_req_id = Serial.readStringUntil('\n');
+          cansat_req_id.trim();
+          Serial.println("LORA GOT: " + cansat_req_id);
+        }
+        if(cansat_req_id.startsWith(ADMIN_KEY + "-CANSAT_REQ_ID-")) {
+          Serial.println("LORA SEND: " + cansat_req_id);
+          encryptedMessage = base64Encode(cansat_req_id);
+          LoRa.beginPacket();
+          LoRa.print(encryptedMessage);
+          LoRa.endPacket();
+          
+          // DEBUG: Mostrar registros después de enviar respuesta
+          dumpLoRaRegisters();
+        }
+      } else if (decryptedMessage.startsWith(ADMIN_KEY)){
+        Serial.println(decryptedMessage);
+        decryptedMessage = "";
+      }
+    } else {
+      Serial.println("Mensaje descartado - longitud inválida");
     }
   } 
   delay(100);

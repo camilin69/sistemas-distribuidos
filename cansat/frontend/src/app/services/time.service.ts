@@ -15,22 +15,30 @@ export class TimeService {
 
   // Formatear tiempo relativo en formato legible
   formatRelativeTime(relativeTimeMs: number): string {
+    // Si el tiempo es muy grande, probablemente es un error
+    if (relativeTimeMs > 86400000 * 30) { // Más de 30 días
+        return 'Datos inválidos';
+    }
+    
     const seconds = Math.floor(relativeTimeMs / 1000);
     const minutes = Math.floor(seconds / 60);
     const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
     
     const remainingSeconds = seconds % 60;
     const remainingMinutes = minutes % 60;
+    const remainingHours = hours % 24;
     
-    if (hours > 0) {
-      return `${hours}h ${remainingMinutes}m ${remainingSeconds}s`;
+    if (days > 0) {
+        return `${days}d ${remainingHours}h ${remainingMinutes}m ${remainingSeconds}s`;
+    } else if (hours > 0) {
+        return `${hours}h ${remainingMinutes}m ${remainingSeconds}s`;
     } else if (minutes > 0) {
-      return `${minutes}m ${remainingSeconds}s`;
+        return `${minutes}m ${remainingSeconds}s`;
     } else {
-      return `${seconds}s`;
+        return `${seconds}s`;
     }
   }
-
   // Convertir datos del chart con tiempo relativo
   convertChartDataToRelative(chartData: ChartData[]): ChartData[] {
     if (!chartData || chartData.length === 0) return [];
@@ -52,7 +60,14 @@ export class TimeService {
   calculateDurationFromVariables(variables: any[]): string {
     if (!variables || variables.length < 2) return 'N/A';
     
-    const sortedVariables = [...variables].sort((a, b) => a.timestamp - b.timestamp);
+    // Filtrar timestamps válidos
+    const validVariables = variables.filter(v => 
+        v.timestamp && v.timestamp < 1000000000
+    );
+    
+    if (validVariables.length < 2) return 'Datos inválidos';
+    
+    const sortedVariables = [...validVariables].sort((a, b) => a.timestamp - b.timestamp);
     const startTime = sortedVariables[0].timestamp;
     const endTime = sortedVariables[sortedVariables.length - 1].timestamp;
     const durationMs = endTime - startTime;

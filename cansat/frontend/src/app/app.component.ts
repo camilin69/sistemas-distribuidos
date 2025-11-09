@@ -262,10 +262,19 @@ export class AppComponent implements OnInit {
 
   calculateLaunchDuration(launch: any): any {
     if (!launch.variables || launch.variables.length < 2) {
-      return { duration: 'N/A', status: 'Sin datos', isInProgress: false };
+        return { duration: 'N/A', status: 'Sin datos', isInProgress: false };
     }
 
-    const sortedVars = [...launch.variables].sort((a, b) => a.timestamp - b.timestamp);
+    // Filtrar solo variables con timestamps válidos (del Arduino)
+    const validVariables = launch.variables.filter((v: any) => 
+        v.timestamp && v.timestamp < 1000000000 // Menos de 1,000,000,000 ms (~11 días)
+    );
+
+    if (validVariables.length < 2) {
+        return { duration: 'N/A', status: 'Datos inválidos', isInProgress: false };
+    }
+
+    const sortedVars = [...validVariables].sort((a: any, b: any) => a.timestamp - b.timestamp);
     const startTime = sortedVars[0].timestamp;
     const endTime = sortedVars[sortedVars.length - 1].timestamp;
     const durationMs = endTime - startTime;
@@ -276,21 +285,27 @@ export class AppComponent implements OnInit {
                         launch.end_date === 'Invalid Date';
 
     return {
-      duration: this.timeService.formatRelativeTime(durationMs),
-      status: isInProgress ? 'En progreso' : 'Completado',
-      isInProgress: isInProgress
+        duration: this.timeService.formatRelativeTime(durationMs),
+        status: isInProgress ? 'En progreso' : 'Completado',
+        isInProgress: isInProgress
     };
   }
+
   getStartTimestamp(): number {
-    if (!this.selectedLaunch?.variables?.length) return 0;
-    return Math.min(...this.selectedLaunch.variables.map(v => v.timestamp));
+      if (!this.selectedLaunch?.variables?.length) return 0;
+      const validTimestamps = this.selectedLaunch.variables
+          .filter((v: any) => v.timestamp && v.timestamp < 1000000000)
+          .map((v: any) => v.timestamp);
+      return validTimestamps.length > 0 ? Math.min(...validTimestamps) : 0;
   }
 
   getEndTimestamp(): number {
-    if (!this.selectedLaunch?.variables?.length) return 0;
-    return Math.max(...this.selectedLaunch.variables.map(v => v.timestamp));
+      if (!this.selectedLaunch?.variables?.length) return 0;
+      const validTimestamps = this.selectedLaunch.variables
+          .filter((v: any) => v.timestamp && v.timestamp < 1000000000)
+          .map((v: any) => v.timestamp);
+      return validTimestamps.length > 0 ? Math.max(...validTimestamps) : 0;
   }
-
   
 
   loadChartData() {

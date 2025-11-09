@@ -1,6 +1,5 @@
 #include <TinyGPS++.h>
 #include <LoRa.h>
-#include <Servo.h>
 #include <DHT.h>
 #include <SoftwareSerial.h>
 
@@ -9,14 +8,14 @@
 #define LORA_NSS 10
 #define BTN_START 3
 #define BTN_STOP 4
-#define SERVO_PIN 8
 #define DHT_PIN 6
-#define GPS_TX A0
-#define GPS_RX A1
+#define GPS_TX A1
+#define GPS_RX A0
 
 // Objetos
-Servo servo;
 DHT dht(DHT_PIN, DHT22);
+TinyGPSPlus gps;
+SoftwareSerial gpsSerial(GPS_RX, GPS_TX);
 
 // Variables
 enum SystemState {
@@ -43,57 +42,130 @@ bool requesting_id = false;
 int reqAttempts = 0;
 const int MAX_REQ_ATTEMPTS = 10;
 
-const char BASE64_CHARS[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+const byte XOR_KEYS[] = {0x2A, 0x4F, 0x31, 0x5C};
+const int KEY_LENGTH = 4;
 
-// Base64
-String base64Encode(const String& input) {
-  String output = "";
-  int i = 0;
-  int len = input.length();
-  
-  while (i < len) {
-    uint32_t octet_a = i < len ? (unsigned char)input[i++] : 0;
-    uint32_t octet_b = i < len ? (unsigned char)input[i++] : 0;
-    uint32_t octet_c = i < len ? (unsigned char)input[i++] : 0;
-    
-    uint32_t triple = (octet_a << 0x10) + (octet_b << 0x08) + octet_c;
-    
-    output += BASE64_CHARS[(triple >> 3 * 6) & 0x3F];
-    output += BASE64_CHARS[(triple >> 2 * 6) & 0x3F];
-    output += BASE64_CHARS[(triple >> 1 * 6) & 0x3F];
-    output += BASE64_CHARS[(triple >> 0 * 6) & 0x3F];
+String xorEncrypt(const String& input) {
+  String encrypted = "";
+  for (int i = 0; i < input.length(); i++) {
+    byte encryptedByte = input[i] ^ XOR_KEYS[i % KEY_LENGTH];
+    // Convertir a hexadecimal para evitar caracteres problemáticos
+    char hex[3];
+    sprintf(hex, "%02X", encryptedByte);
+    encrypted += hex;
   }
-  
-  if (len % 3 == 1) {
-    output[output.length()-1] = '=';
-    output[output.length()-2] = '=';
-  } else if (len % 3 == 2) {
-    output[output.length()-1] = '=';
-  }
-  
-  return output;
+  return encrypted;
 }
 
-String base64Decode(const String& input) {
-  String output = "";
-  int i = 0;
-  int len = input.length();
+String xorDecrypt(const String& input) {
+  String decrypted = "";
+  for (int i = 0; i < input.length(); i += 2) {
+    String hexByte = input.substring(i, i + 2);
+    byte encryptedByte = strtol(hexByte.c_str(), NULL, 16);
+    decrypted += (char)(encryptedByte ^ XOR_KEYS[(i/2) % KEY_LENGTH]);
+  }
+  return decrypted;
+}
+
+void displayGPSInfo() {
+  Serial.println("=== GPS INFO ===");
   
-  while (i < len) {
-    uint32_t sextet_a = input[i] == '=' ? 0 & i++ : (strchr(BASE64_CHARS, input[i++]) - BASE64_CHARS);
-    uint32_t sextet_b = input[i] == '=' ? 0 & i++ : (strchr(BASE64_CHARS, input[i++]) - BASE64_CHARS);
-    uint32_t sextet_c = input[i] == '=' ? 0 & i++ : (strchr(BASE64_CHARS, input[i++]) - BASE64_CHARS);
-    uint32_t sextet_d = input[i] == '=' ? 0 & i++ : (strchr(BASE64_CHARS, input[i++]) - BASE64_CHARS);
+  if (gps.location.isValid()) {
+    Serial.print("Latitude: ");
+    Serial.println(gps.location.lat(), 6);
+    Serial.print("Longitude: ");
+    Serial.println(gps.location.lng(), 6);
+    Serial.print("Altitude: ");
+    Serial.print(gps.altitude.meters());
+    Serial.println(" m");
+    Serial.print("Speed: ");
+    Serial.print(gps.speed.kmph());
+    Serial.println(" km/h");
+    Serial.print("Satellites: ");
+    Serial.println(gps.satellites.value());
     
-    uint32_t triple = (sextet_a << 3 * 6) + (sextet_b << 2 * 6) + (sextet_c << 1 * 6) + (sextet_d << 0 * 6);
+    if (gps.date.isValid()) {
+      Serial.print("Date: ");
+      Serial.print(gps.date.day());
+      Serial.print("/");
+      Serial.print(gps.date.month());
+      Serial.print("/");
+      Serial.println(gps.date.year());
+    }
     
-    output += (char)((triple >> 2 * 8) & 0xFF);
-    if (input[i-2] != '=') output += (char)((triple >> 1 * 8) & 0xFF);
-    if (input[i-1] != '=') output += (char)((triple >> 0 * 8) & 0xFF);
+    if (gps.time.isValid()) {
+      Serial.print("Time: ");
+      Serial.print(gps.time.hour());
+      Serial.print(":");
+      Serial.print(gps.time.minute());
+      Serial.print(":");
+      Serial.println(gps.time.second());
+    }
+  } else {
+    Serial.println("GPS: No data available");
+    Serial.print("Satellites in view: ");
+    Serial.println(gps.satellites.value());
   }
   
-  return output;
+  Serial.println("================");
 }
+
+void readGPS() {
+  while (gpsSerial.available() > 0) {
+    gps.encode(gpsSerial.read());
+  }
+}
+
+String getGPSData() {
+  String gpsData = "";
+  
+  if (gps.location.isValid()) {
+    gpsData += String(gps.location.lat(), 6) + ",";
+    gpsData += String(gps.location.lng(), 6) + ",";
+    gpsData += String(gps.altitude.meters(), 1) + ",";
+    gpsData += String(gps.speed.kmph(), 1) + ",";
+    gpsData += String(gps.satellites.value()) + ",";
+    
+    // Fecha y hora
+    if (gps.date.isValid() && gps.time.isValid()) {
+      gpsData += String(gps.date.year()) + "-";
+      gpsData += String(gps.date.month()) + "-";
+      gpsData += String(gps.date.day()) + " ";
+      gpsData += String(gps.time.hour()) + ":";
+      gpsData += String(gps.time.minute()) + ":";
+      gpsData += String(gps.time.second());
+    } else {
+      gpsData += "NO_TIME";
+    }
+  } else {
+    gpsData = "NO_GPS";
+  }
+  
+  return gpsData;
+}
+
+void testPins() {
+  Serial.println("🔌 TESTEO DE PINES:");
+  
+  // Verificar pines críticos
+  int pins[] = {LORA_NSS, LORA_RST, LORA_DI00};
+  String pinNames[] = {"NSS", "RST", "DIO0"};
+  
+  for (int i = 0; i < 3; i++) {
+    pinMode(pins[i], OUTPUT);
+    digitalWrite(pins[i], HIGH);
+    delay(10);
+    digitalWrite(pins[i], LOW);
+    Serial.print("   Pin ");
+    Serial.print(pinNames[i]);
+    Serial.print(" (");
+    Serial.print(pins[i]);
+    Serial.println("): OK");
+    delay(50);
+  }
+  Serial.println();
+}
+
 
 void hardResetLoRa() {
   Serial.println("Reiniciando módulo LoRa...");
@@ -107,6 +179,7 @@ void hardResetLoRa() {
   digitalWrite(LORA_RST, HIGH);
   delay(50);
   
+  
   LoRa.setPins(LORA_NSS, LORA_RST, LORA_DI00);
   
   if (!LoRa.begin(433E6)) {
@@ -118,19 +191,16 @@ void hardResetLoRa() {
   LoRa.setSignalBandwidth(125E3);
   LoRa.setCodingRate4(5);
   LoRa.setSyncWord(0x12);
-  
   Serial.println("Módulo LoRa reiniciado exitosamente");
 }
 
 void setup() {
   Serial.begin(9600);
-  delay(1000);
-  
+  delay(3000);
+  testPins();
   pinMode(BTN_START, INPUT_PULLUP);
   pinMode(BTN_STOP, INPUT_PULLUP);
   
-  servo.attach(SERVO_PIN);
-  servo.write(0);
   dht.begin();
   
   hardResetLoRa();
@@ -140,7 +210,7 @@ void setup() {
 void loop() {
   start();
   stop();
-  
+  readGPS();
   unsigned long currentTime = millis();
   
   if (transmitting) {
@@ -152,11 +222,12 @@ void loop() {
         
         // Incrementar intentos y verificar máximo
         reqAttempts++;
+        transmitting = false;
         if (reqAttempts >= MAX_REQ_ATTEMPTS) {
           Serial.println("Máximo de intentos alcanzado - reiniciando LoRa");
           hardResetLoRa();
           reqAttempts = 0;
-          requesting_id = false;
+          requesting_id = false; 
           transmitting = false;
         }
       }
@@ -190,6 +261,7 @@ void loop() {
         lastSendTime = currentTime;
         Serial.print("Estado actual: ");
         Serial.println(STATES[stateCurrent]);
+        
       }
     } else {
       requesting_id = true;
@@ -197,7 +269,6 @@ void loop() {
     }
   }
   
-  receive();
   delay(50);
 }
 
@@ -208,8 +279,7 @@ void start() {
       transmitting = true;
       requesting_id = true; 
       lastSendTime = millis();
-      reqAttempts = 0; // Resetear contador de intentos
-      moveServo(180);
+      reqAttempts = 0; 
       Serial.println("START - Transmitiendo...");
     }
   }
@@ -222,7 +292,6 @@ void stop() {
       if (launch_id == "") {
         transmitting = false;
         requesting_id = false;
-        moveServo(0);
         Serial.println("STOP - Transmisión cancelada (sin ID)");
       } else {
         stopping = true;
@@ -245,18 +314,20 @@ void sendLaunchData() {
     message += String(humidity, 1) + "-";
   }
   
-  // ✅ SIN CHECKSUM - Formato simple que espera el publisher
-  String encryptedMessage = base64Encode(message);
+  String encryptedMessage = xorEncrypt(message);
   
   LoRa.beginPacket();
   LoRa.print(encryptedMessage);
-  LoRa.endPacket();
+  bool success = LoRa.endPacket();
+  if (success) {
+    Serial.print("SUCCESS TX, ");
+    Serial.println("NOW RX...");
+  }
 }
 
 void cansatReqId() {
-  // ✅ SIN CHECKSUM - Solo el mensaje simple
   String message = ADMIN_KEY + "-CANSAT_REQ_ID";
-  String encryptedMessage = base64Encode(message);
+  String encryptedMessage = xorEncrypt(message);
   
   Serial.print("TX REQ (intento ");
   Serial.print(reqAttempts);
@@ -268,43 +339,30 @@ void cansatReqId() {
   LoRa.endPacket();
 }
 
-void receive() {
+void onReceive() {
+  Serial.println("Receiving after TX done...");
   if (LoRa.parsePacket() > 0) {
     String encryptedMessage = "";
     
-    // Leer con filtrado básico
     while (LoRa.available()) {
-      char c = (char)LoRa.read();
-      // Solo aceptar caracteres Base64 válidos
-      if (isalnum(c) || c == '+' || c == '/' || c == '=') {
-        encryptedMessage += c;
-      }
+      encryptedMessage += (char)LoRa.read();
     }
     
-    // Solo procesar si tiene longitud razonable
-    if (encryptedMessage.length() >= 20 && encryptedMessage.length() <= 100) {
-      Serial.print("RX: ");
-      Serial.println(encryptedMessage);
+    Serial.print("RX: ");
+    Serial.println(encryptedMessage);
+    
+    String decryptedMessage = xorDecrypt(encryptedMessage);
+    Serial.print("Decoded: ");
+    Serial.println(decryptedMessage);
+    
+    if (decryptedMessage.startsWith(ADMIN_KEY + "-CANSAT_REQ_ID-")) {
+      int i1 = decryptedMessage.indexOf("-");
+      int i2 = decryptedMessage.indexOf("-", i1 + 1);
+      launch_id = decryptedMessage.substring(i2 + 1);
+      requesting_id = false;
+      reqAttempts = 0; // Resetear intentos
+      Serial.println("=== LAUNCH ID RECIBIDO: " + launch_id + " ===");
       
-      String decryptedMessage = base64Decode(encryptedMessage);
-      Serial.print("Decoded: ");
-      Serial.println(decryptedMessage);
-      
-      if (decryptedMessage.startsWith(ADMIN_KEY + "-CANSAT_REQ_ID-")) {
-        int i1 = decryptedMessage.indexOf("-");
-        int i2 = decryptedMessage.indexOf("-", i1 + 1);
-        launch_id = decryptedMessage.substring(i2 + 1);
-        requesting_id = false;
-        reqAttempts = 0; // Resetear intentos
-        Serial.println("=== LAUNCH ID RECIBIDO: " + launch_id + " ===");
-      }
-    } else {
-      Serial.println("Mensaje descartado - longitud inválida");
     }
   }
-}
-
-void moveServo(int angle) {
-  servo.write(angle);
-  delay(300);
 }

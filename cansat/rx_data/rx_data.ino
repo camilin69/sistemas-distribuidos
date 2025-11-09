@@ -5,7 +5,7 @@
 #define LORA_DI00 2
 
 void setup() {
-  Serial.begin(115200);
+  Serial.begin(9600);
   delay(1000);
   
   LoRa.setPins(LORA_NSS, LORA_RST, LORA_DI00);

@@ -18,8 +18,8 @@ import { ChartData } from '../../models/launch.model';
         </thead>
         <tbody>
           <tr *ngFor="let item of data.slice(0, 20)">
-            <td>{{ item.formattedTime || item.localTime || (item.relativeTime | number:'1.0-0') + 'ms' }}</td>
-            <td>{{ item.timestamp | number:'1.0-0' }}ms</td>
+            <td>{{ item.formattedTime || item.localTime || (item.relativeTime | number:'1.0-0') + 's' }}</td>
+            <td>{{ item.timestamp | number:'1.0-0' }}s</td>
             <td>{{ item.value | number:'1.2-2' }}</td>
           </tr>
         </tbody>

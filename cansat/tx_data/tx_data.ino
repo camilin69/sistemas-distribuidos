@@ -25,7 +25,7 @@ int packetCount = 0;
 unsigned long lastSendTime = 0;
 
 void setup() {
-  Serial.begin(115200);
+  Serial.begin(9600);
   delay(1000);
   
   // Configurar pines
