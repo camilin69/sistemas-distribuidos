@@ -6,16 +6,16 @@
 #define LORA_DI00 2
 #define LORA_RST 9
 #define LORA_NSS 10
-#define BTN_START 3
-#define BTN_STOP 4
+#define BTN_START 7
+#define BTN_STOP 8
 #define DHT_PIN 6
-#define GPS_TX A1
-#define GPS_RX A0
+#define GPS_TX 4
+#define GPS_RX 3
 
 // Objetos
 DHT dht(DHT_PIN, DHT22);
 TinyGPSPlus gps;
-SoftwareSerial gpsSerial(GPS_RX, GPS_TX);
+SoftwareSerial GPS(GPS_RX, GPS_TX);
 
 // Variables
 String ADMIN_KEY = "playboi";
@@ -29,11 +29,8 @@ const byte XOR_KEYS[] = {0x2A, 0x4F, 0x31, 0x5C};
 const int KEY_LENGTH = 4;
 
 void checkDIO0() {
-  // Verificar si el pin DIO0 indica transmisión completada
-  delay(10); // Pequeña espera para que se active
+  delay(10); 
   bool dio0State = digitalRead(LORA_DI00);
-  Serial.print("   DIO0 state: ");
-  Serial.println(dio0State ? "HIGH" : "LOW");
 }
 
 String xorEncrypt(const String& input) {
@@ -68,19 +65,13 @@ void testPins() {
     digitalWrite(pins[i], HIGH);
     delay(10);
     digitalWrite(pins[i], LOW);
-    Serial.print("   Pin ");
-    Serial.print(pinNames[i]);
-    Serial.print(" (");
-    Serial.print(pins[i]);
-    Serial.println("): OK");
     delay(50);
   }
-  Serial.println();
 }
 
 void readGPS() {
-  while (gpsSerial.available() > 0) {
-    gps.encode(gpsSerial.read());
+  while (GPS.available() > 0) {
+    gps.encode(GPS.read());
   }
 }
 
@@ -92,6 +83,21 @@ String getGPSData() {
     gpsData += "-" + String(gps.location.lng(), 6);
     gpsData += "-" + String(gps.altitude.meters(), 1); 
   } 
+  
+  return gpsData;
+}
+
+String testGPSData() {
+  String gpsData = "";
+  
+  if(GPS.available() > 0) {
+    gps.encode(GPS.read());
+    if(gps.location.isUpdated()) {
+      gpsData += "-" + String(gps.location.lat(), 6);
+      gpsData += "-" + String(gps.location.lng(), 6);
+
+    }
+  }
   
   return gpsData;
 }
@@ -109,7 +115,6 @@ void hardResetLoRa() {
   LoRa.setPins(LORA_NSS, LORA_RST, LORA_DI00);
   
   if (!LoRa.begin(433E6)) {
-    Serial.println("Error iniciando LoRa después del reset!");
     return;
   }
 
@@ -120,58 +125,15 @@ void hardResetLoRa() {
 }
 
 
-void displayGPSInfo() {
-  Serial.println("=== GPS INFO ===");
-  
-  if (gps.location.isValid()) {
-    Serial.print("Latitude: ");
-    Serial.println(gps.location.lat(), 6);
-    Serial.print("Longitude: ");
-    Serial.println(gps.location.lng(), 6);
-    Serial.print("Altitude: ");
-    Serial.print(gps.altitude.meters());
-    Serial.println(" m");
-    Serial.print("Speed: ");
-    Serial.print(gps.speed.kmph());
-    Serial.println(" km/h");
-    Serial.print("Satellites: ");
-    Serial.println(gps.satellites.value());
-    
-    if (gps.date.isValid()) {
-      Serial.print("Date: ");
-      Serial.print(gps.date.day());
-      Serial.print("/");
-      Serial.print(gps.date.month());
-      Serial.print("/");
-      Serial.println(gps.date.year());
-    }
-    
-    if (gps.time.isValid()) {
-      Serial.print("Time: ");
-      Serial.print(gps.time.hour());
-      Serial.print(":");
-      Serial.print(gps.time.minute());
-      Serial.print(":");
-      Serial.println(gps.time.second());
-    }
-  } else {
-    Serial.println("GPS: No data available");
-    Serial.print("Satellites in view: ");
-    Serial.println(gps.satellites.value());
-  }
-  
-  Serial.println("================");
-}
-
 void setup() {
   Serial.begin(9600);
+  GPS.begin(9600);
   delay(3000);
   testPins();
   pinMode(BTN_START, INPUT_PULLUP);
   pinMode(BTN_STOP, INPUT_PULLUP);
   dht.begin();
   hardResetLoRa();
-  Serial.println("Sistema listo - START para comenzar");
 }
 
 void loop() {
@@ -182,7 +144,7 @@ void loop() {
   
   if (transmitting && launch_id != "") {
     if (millis() - lastSendTime >= 1000) {
-      sendLaunchData();
+      sendTestGPSData();
       lastSendTime = millis();
     }
   }
@@ -195,7 +157,6 @@ void start() {
     if (digitalRead(BTN_START) == LOW) {
       transmitting = true;
       lastSendTime = millis();
-      Serial.println("START - Transmitiendo...");
     }
   }
 }
@@ -205,7 +166,6 @@ void stop() {
     delay(50);
     if (digitalRead(BTN_STOP) == LOW) {
       transmitting = false;
-      Serial.println("STOP - Transmisión cancelada (sin ID)");
     }
   }
 }
@@ -225,13 +185,27 @@ void sendLaunchData() {
   message += gpsData;
 
   String encryptedMessage = xorEncrypt(message);
-  Serial.print("Rigth before to send ");
-  Serial.println(message);
   LoRa.beginPacket();
   LoRa.print(encryptedMessage);
   bool success = LoRa.endPacket();
   if (success) {
     checkDIO0();
-    Serial.println("TRANSMITTED OK");
+  }  
+}
+
+void sendTestGPSData() {
+  String timestamp = String(millis());
+  String gpsData = testGPSData();
+
+  // Solo enviamos datos del GPS
+  String message = ADMIN_KEY + "-" + launch_id + "-" + timestamp + "-" + gpsData;
+
+  String encryptedMessage = xorEncrypt(message);
+  
+  LoRa.beginPacket();
+  LoRa.print(encryptedMessage);
+  bool success = LoRa.endPacket();
+  if (success) {
+    checkDIO0();
   }  
 }
