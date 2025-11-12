@@ -1,10 +1,12 @@
+// footer.component.scss
 .footer {
   background: linear-gradient(135deg, #2C3E50 0%, #34495E 100%);
   color: white;
   text-align: center;
   padding: 1.5rem 0;
-  margin-top: auto; // Esto asegura que el footer se empuje hacia abajo
+  margin-top: auto;
   width: 100%;
+  flex-shrink: 0; // Importante: evitar que se reduzca
 
   p {
     margin: 0;

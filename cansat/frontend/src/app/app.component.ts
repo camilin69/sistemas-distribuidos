@@ -1,3 +1,4 @@
+// app.component.ts
 import { Component, OnInit } from '@angular/core';
 import { Router, NavigationEnd } from '@angular/router';
 import { HeaderComponent } from './components/header/header.component';
@@ -85,33 +86,37 @@ import { TimeService } from './services/time.service';
             </div>
           </aside>
 
-          <!-- Resto del template permanece igual -->
+          <!-- Contenido principal -->
           <div class="main-panel">
-            <app-chart 
-              *ngIf="chartData.length > 0 && activeTab !== 'gps'"
-              [data]="chartData"
-              [type]="activeTab"
-              [title]="getChartTitle()"
-            ></app-chart>
-            
-            <app-data-table 
-              *ngIf="chartData.length > 0 && activeTab !== 'gps'"
-              [data]="chartData"
-              [type]="activeTab"
-            ></app-data-table>
+            <!-- Mostrar gráficas normales para tabs que no sean GPS -->
+            <div *ngIf="activeTab !== 'gps'">
+              <app-chart 
+                *ngIf="chartData.length > 0"
+                [data]="chartData"
+                [type]="activeTab"
+                [title]="getChartTitle()"
+              ></app-chart>
+              
+              <app-data-table 
+                *ngIf="chartData.length > 0"
+                [data]="chartData"
+                [type]="activeTab"
+              ></app-data-table>
 
+              <div *ngIf="chartData.length === 0" class="no-chart-data">
+                <div class="no-data-content">
+                  <i class="icon">📈</i>
+                  <h3>No hay datos disponibles</h3>
+                  <p>No se encontraron datos de {{ getActiveTabName().toLowerCase() }} para este lanzamiento.</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Mostrar componente GPS para tab 'gps' -->
             <app-gps-map 
               *ngIf="activeTab === 'gps' && selectedLaunch"
               [launch]="selectedLaunch"
             ></app-gps-map>
-            
-            <div *ngIf="chartData.length === 0 && activeTab !== 'gps'" class="no-chart-data">
-              <div class="no-data-content">
-                <i class="icon">📈</i>
-                <h3>No hay datos disponibles</h3>
-                <p>No se encontraron datos de {{ getActiveTabName().toLowerCase() }} para este lanzamiento.</p>
-              </div>
-            </div>
           </div>
         </div>
 
@@ -172,14 +177,15 @@ export class AppComponent implements OnInit {
       this.showNav = false;
     }
 
-    // Validar que la pestaña sea una de las permitidas
+    // Validar que la pestaña sea una de las permitidas (incluyendo 'gps')
     if (tab && this.isValidTab(tab)) {
       this.activeTab = tab;
     }
   }
 
+  // CORREGIDO: Incluir 'gps' en los tabs válidos
   isValidTab(tab: string): boolean {
-    const validTabs = ['humidity', 'temperature', 'latitude', 'longitude', 'altitude'];
+    const validTabs = ['humidity', 'temperature', 'latitude', 'longitude', 'altitude', 'gps'];
     return validTabs.includes(tab);
   }
 
@@ -204,7 +210,10 @@ export class AppComponent implements OnInit {
     if (this.isValidTab(tab)) {
       this.activeTab = tab;
       this.updateUrl();
-      this.loadChartData();
+      // Solo cargar datos de chart si no es el tab GPS
+      if (tab !== 'gps') {
+        this.loadChartData();
+      }
     }
   }
 
@@ -234,7 +243,10 @@ export class AppComponent implements OnInit {
           next: (launch) => {
             this.selectedLaunch = launch;
             this.updateLaunchInfo();
-            this.loadChartData();
+            // Solo cargar datos de chart si el tab activo no es GPS
+            if (this.activeTab !== 'gps') {
+              this.loadChartData();
+            }
           },
           error: (error) => {
             console.error('Error loading launch data:', error);
@@ -309,7 +321,7 @@ export class AppComponent implements OnInit {
   
 
   loadChartData() {
-    if (this.selectedLaunch && this.activeTab) {
+    if (this.selectedLaunch && this.activeTab && this.activeTab !== 'gps') {
       this.chartData = this.launchService.getChartData(this.selectedLaunch, this.activeTab);
     } else {
       this.chartData = [];
@@ -336,6 +348,8 @@ export class AppComponent implements OnInit {
         return 'Longitud';
       case 'altitude':
         return 'Altitud';
+      case 'gps':
+        return 'Mapa GPS';
       default:
         return 'Datos';
     }

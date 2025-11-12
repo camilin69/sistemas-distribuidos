@@ -19,6 +19,7 @@ export interface ChartData {
   timestamp: number;
   value: number;
   relativeTime?: number;
+  variable_type?: string;
   formattedTime?: string;
   displayTime?: string;
   localTime?: string; 

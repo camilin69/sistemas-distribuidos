@@ -40,7 +40,7 @@ class DataPublisherRX:
             if not raw_data or raw_data == "None":
                 return None
                 
-            parts = raw_data.split('-')
+            parts = raw_data.split('*')
             
             if len(parts) < 3:
                 return None

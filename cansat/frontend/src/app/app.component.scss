@@ -1,3 +1,4 @@
+// app.component.scss
 .app-container {
   min-height: 100vh;
   display: flex;
@@ -21,6 +22,7 @@
     // Cuando hay datos, usa el layout normal
     &.has-data {
       padding: 20px;
+      min-height: calc(100vh - 200px); // Asegurar altura mínima para que footer quede abajo
     }
 
     .content-wrapper {
@@ -28,8 +30,8 @@
       gap: 20px;
       max-width: 1400px;
       margin: 0 auto;
-      height: 100%;
       width: 100%;
+      flex: 1; // Asegurar que ocupe el espacio disponible
 
       // Panel lateral con información
       .launch-info-panel {
@@ -77,6 +79,30 @@
               color: #2C3E50;
               text-align: right;
               font-size: 0.95rem;
+
+              &.status {
+                font-weight: 600;
+                padding: 2px 8px;
+                border-radius: 12px;
+                font-size: 0.8rem;
+                
+                &.in-progress {
+                  background-color: #FFF3CD;
+                  color: #856404;
+                  border: 1px solid #FFEEBA;
+                }
+                
+                &.completed {
+                  background-color: #D1ECF1;
+                  color: #0C5460;
+                  border: 1px solid #BEE5EB;
+                }
+              }
+              
+              &.duration {
+                font-weight: 600;
+                color: #2980B9;
+              }
             }
           }
         }
@@ -89,6 +115,7 @@
         flex-direction: column;
         gap: 20px;
         min-width: 0;
+        min-height: 500px; // Altura mínima para que el footer no suba
       }
     }
 
@@ -146,83 +173,6 @@
 
         p {
           color: #666;
-        }
-      }
-    }
-
-    // En app.component.scss o un archivo de estilos global
-.launch-info-panel {
-  .info-card {
-    .info-item {
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 0.5rem;
-      padding: 0.25rem 0;
-      
-      .label {
-        font-weight: 500;
-        color: #2C3E50;
-        font-size: 0.9rem;
-      }
-      
-      .value {
-        color: #34495E;
-        font-weight: 400;
-        text-align: right;
-        
-        &.status {
-          font-weight: 600;
-          padding: 2px 8px;
-          border-radius: 12px;
-          font-size: 0.8rem;
-          
-          &.in-progress {
-            background-color: #FFF3CD;
-            color: #856404;
-            border: 1px solid #FFEEBA;
-          }
-          
-          &.completed {
-            background-color: #D1ECF1;
-            color: #37ff00;
-            border: 1px solid #BEE5EB;
-          }
-        }
-        
-        &.duration {
-          font-weight: 600;
-          color: #2980B9;
-        }
-      }
-    }
-    
-    // Separador visual para grupos de información
-    .info-item:nth-child(3) {
-          border-bottom: 1px solid #ECF0F1;
-          padding-bottom: 0.5rem;
-          margin-bottom: 0.5rem;
-        }
-        
-        .info-item:nth-child(7) {
-          border-bottom: 1px solid #ECF0F1;
-          padding-bottom: 0.5rem;
-          margin-bottom: 0.5rem;
-        }
-      }
-    }
-
-    // Estilos responsivos
-    @media (max-width: 768px) {
-      .launch-info-panel {
-        .info-card {
-          .info-item {
-            flex-direction: column;
-            gap: 0.25rem;
-            
-            .value {
-              text-align: left;
-            }
-          }
         }
       }
     }
