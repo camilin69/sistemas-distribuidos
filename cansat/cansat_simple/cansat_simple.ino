@@ -9,8 +9,8 @@
 #define BTN_START 7
 #define BTN_STOP 8
 #define DHT_PIN 6
-#define GPS_TX 4
-#define GPS_RX 3
+#define GPS_TX 3
+#define GPS_RX 4
 
 // Objetos
 DHT dht(DHT_PIN, DHT22);
@@ -19,7 +19,7 @@ SoftwareSerial GPS(GPS_RX, GPS_TX);
 
 // Variables
 String ADMIN_KEY = "playboi";
-String launch_id = "111"; 
+String launch_id = "4"; 
 bool transmitting = false;
 unsigned long lastSendTime = 0;
 bool idAsked = false;
@@ -79,28 +79,14 @@ String getGPSData() {
   String gpsData = "";
   
   if (gps.location.isValid()) {
-    gpsData += "-" + String(gps.location.lat(), 6);
-    gpsData += "-" + String(gps.location.lng(), 6);
-    gpsData += "-" + String(gps.altitude.meters(), 1); 
+    gpsData += "*" + String(gps.location.lat(), 6);
+    gpsData += "*" + String(gps.location.lng(), 6);
+    gpsData += "*" + String(gps.altitude.meters(), 1); 
   } 
   
   return gpsData;
 }
 
-String testGPSData() {
-  String gpsData = "";
-  
-  if(GPS.available() > 0) {
-    gps.encode(GPS.read());
-    if(gps.location.isUpdated()) {
-      gpsData += "-" + String(gps.location.lat(), 6);
-      gpsData += "-" + String(gps.location.lng(), 6);
-
-    }
-  }
-  
-  return gpsData;
-}
 
 void hardResetLoRa() {
   LoRa.end();
@@ -144,7 +130,7 @@ void loop() {
   
   if (transmitting && launch_id != "") {
     if (millis() - lastSendTime >= 1000) {
-      sendTestGPSData();
+      sendLaunchData();
       lastSendTime = millis();
     }
   }
@@ -176,10 +162,10 @@ void sendLaunchData() {
   float humidity = dht.readHumidity();
   String gpsData = getGPSData();
 
-  String message = ADMIN_KEY + "-" + launch_id + "-" + timestamp + "-";
+  String message = ADMIN_KEY + "*" + launch_id + "*" + timestamp + "*";
   
   if (!isnan(temperature) && !isnan(humidity)) {
-    message += String(temperature, 1) + "-";
+    message += String(temperature, 1) + "*";
     message += String(humidity, 1);
   }
   message += gpsData;
@@ -195,10 +181,10 @@ void sendLaunchData() {
 
 void sendTestGPSData() {
   String timestamp = String(millis());
-  String gpsData = testGPSData();
+  String gpsData = getGPSData();
 
   // Solo enviamos datos del GPS
-  String message = ADMIN_KEY + "-" + launch_id + "-" + timestamp + "-" + gpsData;
+  String message = ADMIN_KEY + "*" + launch_id + "*" + timestamp + "*" + gpsData;
 
   String encryptedMessage = xorEncrypt(message);
   
